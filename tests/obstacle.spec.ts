@@ -69,6 +69,7 @@ for (const editShape of ["square", "circle"] as const)
       return field();
     };
     const empty = await run();
+    await page.getByText("Flow conditions", { exact: true }).click();
     await page.getByLabel("Shape").selectOption("square");
     await action("Apply");
     await expect(page.locator("#time")).toHaveText("0.00 s");

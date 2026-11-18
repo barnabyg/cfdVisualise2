@@ -37,14 +37,45 @@ test("change the display grid while inspecting a paused field", async ({
     await expect(page.locator("#time")).toHaveText(time);
     await expect(page.getByRole("status")).toHaveText("Paused");
   }
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByRole("button", { name: "Restore defaults" }).click();
   await expect(density).toHaveValue("12.5");
   await expect(arrows).toHaveCount(1536);
   await expect(page.locator("#dots")).toHaveAttribute("width", "12.5");
 });
 
+test("Flow conditions starts collapsed and can be toggled during playback", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  const summary = page
+    .locator("summary")
+    .filter({ hasText: "Flow conditions" });
+  const rate = page.getByLabel("Inlet rate");
+  await expect(summary).toBeVisible();
+  await expect(rate).toBeHidden();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await summary.click();
+  await expect(rate).toBeVisible();
+  await expect(page.locator("#outflow")).toBeVisible();
+  await page.clock.runFor(200);
+  const time = page.locator("#time");
+  const beforeCollapse = Number.parseFloat((await time.textContent()) ?? "");
+  await summary.press("Enter");
+  await expect(rate).toBeHidden();
+  await expect(page.locator("#outflow")).toBeHidden();
+  await page.clock.runFor(200);
+  expect(Number.parseFloat((await time.textContent()) ?? "")).toBeGreaterThan(
+    beforeCollapse,
+  );
+  await summary.press("Space");
+  await expect(rate).toBeVisible();
+});
+
 test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   const rate = page.getByLabel("Inlet rate");
   const click = (name: string) =>
     page.getByRole("button", { name, exact: true }).click();
@@ -75,6 +106,7 @@ test("higher flow at fixed width lengthens the inlet arrow on the same scale", a
 }) => {
   await page.clock.install();
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByLabel("Grid density").selectOption({ label: "Standard" });
   const lengths: number[] = [];
   for (const flux of ["0.09375", "0.1875"]) {
@@ -99,6 +131,7 @@ test("moving then narrowing the inlet strengthens the rendered downward jet", as
 }) => {
   await page.clock.install();
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByLabel("Grid density").selectOption({ label: "Standard" });
   const inlet = page.getByRole("group", { name: "Inlet", exact: true });
   await page.getByLabel("Inlet rate").fill("0.09375");
@@ -128,6 +161,7 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
 }) => {
   await page.clock.install();
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByLabel("Grid density").selectOption({ label: "Standard" });
   const click = (name: string) =>
     page.getByRole("button", { name, exact: true }).click();
@@ -202,6 +236,7 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
   page,
 }) => {
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByLabel("Grid density").selectOption({ label: "Standard" });
   const group = page.getByRole("group", { name: "Cavity", exact: true });
   const w = group.getByLabel("Width"),
@@ -281,6 +316,7 @@ test("compare the shallow and tall currents at the same place and time", async (
 }) => {
   await page.clock.install();
   await page.goto("/");
+  await page.getByText("Flow conditions", { exact: true }).click();
   await page.getByLabel("Grid density").selectOption({ label: "Standard" });
   const height = page
     .getByRole("group", { name: "Cavity", exact: true })
