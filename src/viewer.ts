@@ -10,7 +10,10 @@ const time = element("#time");
 const run = element<HTMLButtonElement>("#run");
 const restart = element<HTMLButtonElement>("#restart");
 let model = new Cavity();
-const scale = 600 / scene.width;
+const width = element<SVGRectElement>("#walls").width.baseVal.value;
+const pattern = element<SVGPatternElement>("#dots");
+const spacing = pattern.width.baseVal.value;
+const scale = width / scene.width;
 const height = scene.height * scale;
 const axes = element("#axes");
 for (let x = 0; x <= scene.width; x += 0.25) {
@@ -27,7 +30,7 @@ for (let y = 0; y <= scene.height; y += 0.25) {
 }
 for (const [x, bottom, color] of [
   [0, scene.inletBottom, "#67d8b4"],
-  [600, scene.outletBottom, "#ffb26d"],
+  [width, scene.outletBottom, "#ffb26d"],
 ] as const) {
   const y = height - bottom * scale;
   element("#ports").insertAdjacentHTML(
@@ -46,8 +49,8 @@ element("#conditions").innerHTML = conditions
   .join("");
 function draw() {
   const lines: string[] = [];
-  for (let y = 12.5; y < height; y += 25) {
-    for (let x = 12.5; x < 600; x += 25) {
+  for (let y = spacing / 2; y < height; y += spacing) {
+    for (let x = spacing / 2; x < width; x += spacing) {
       const [u, v] = model.velocity(x / scale, (height - y) / scale);
       const speed = Math.hypot(u, v);
       if (speed === 0) continue;
