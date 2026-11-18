@@ -1,3 +1,4 @@
+import { geometry as renderedGeometry } from "./geometry.ts";
 import { test, expect } from "@playwright/test";
 test("the jet develops a visible return current and settles", async ({
   page,
@@ -8,10 +9,10 @@ test("the jet develops a visible return current and settles", async ({
   await page.getByRole("button", { name: "Run", exact: true }).click();
   const field = page
     .getByRole("img", { name: "Cavity velocity field" })
-    .locator("path.velocity");
+    .locator(".velocity");
   // In the SVG viewBox, positive x points right and positive y points down.
   async function shafts() {
-    const geometry = await field.getAttribute("d");
+    const geometry = await renderedGeometry(field);
     return Array.from(
       (geometry ?? "").matchAll(/M([-\d.]+) ([-\d.]+)L([-\d.]+) ([-\d.]+)/g),
       (m) => {

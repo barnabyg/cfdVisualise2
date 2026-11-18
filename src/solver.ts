@@ -229,6 +229,7 @@ export class Cavity {
   private v: Float64Array;
   private nextU: Float64Array;
   private nextV: Float64Array;
+  private pressureScale = 0;
   private pressure: Float64Array;
 
   readonly settings;
@@ -383,6 +384,8 @@ export class Cavity {
       }
     }
     solvePressure(pressure, this.factor, ny);
+    // The projection stores (dt / h) times kinematic pressure.
+    this.pressureScale = h / dt;
     for (const { face, cell } of this.outletBoundary)
       outletVelocity[face] += sign * 2 * pressure[cell];
     for (let i = 0; i < nx; i++) {
@@ -398,6 +401,14 @@ export class Cavity {
     this.nextU = u;
     this.nextV = v;
     this.setGhostFaces();
+  }
+
+  /** Cell-centred kinematic pressure in m²/s², relative to the outlet. */
+  pressureAt(x: number, y: number): number {
+    const { nx, ny } = this.grid;
+    const i = Math.max(0, Math.min(nx - 1, Math.floor(x / h)));
+    const j = Math.max(0, Math.min(ny - 1, Math.floor(y / h)));
+    return this.pressure[i * ny + j] * this.pressureScale;
   }
 
   /** Sample velocity in metres per second, with y increasing from the floor. */
