@@ -31,3 +31,37 @@ for (const flux of [scene.flux, scene.flux / 2])
       assert.ok(Math.abs(outlet + inlet) / -inlet < 0.001);
     }
   });
+
+for (const wall of ["left", "right", "bottom", "top"] as const) {
+  test(`prescribed normal jet on the ${wall} wall`, () => {
+    const flux = 0.09375;
+    for (const width of [0.1875, 0.09375]) {
+      const cavity = new Cavity({ flux, inlet: { wall, start: 0.25, width } });
+      for (let s = 0; s < 80; s++) cavity.step();
+      let integrated = 0;
+      const vertical = wall === "left" || wall === "right";
+      const length = vertical ? scene.height : scene.width;
+      for (let i = 0; i < 960; i++) {
+        const position = ((i + 0.5) * length) / 960;
+        const [u, v] = vertical
+          ? cavity.velocity(wall === "left" ? 0 : scene.width, position)
+          : cavity.velocity(position, wall === "bottom" ? 0 : scene.height);
+        if (position >= 0.25 && position < 0.25 + width) {
+          assert.equal(vertical ? v : u, 0);
+          integrated +=
+            ((wall === "left"
+              ? u
+              : wall === "right"
+                ? -u
+                : wall === "bottom"
+                  ? v
+                  : -v) *
+              length) /
+            960;
+        }
+      }
+      assert.ok(Math.abs(integrated - flux) / flux < 0.001);
+      if (wall !== "left") assert.equal(cavity.velocity(0, 0.125)[0], 0);
+    }
+  });
+}

@@ -16,6 +16,66 @@ export const scene = Object.freeze({
   dt: 0.0125,
 });
 
+export type Wall = "left" | "right" | "bottom" | "top";
+export interface Opening {
+  readonly wall: Wall;
+  readonly start: number;
+  readonly width: number;
+}
+const defaultInlet: Opening = {
+  wall: "left",
+  start: scene.inletBottom,
+  width: scene.openingWidth,
+};
+export const defaultOutlet: Opening = {
+  wall: "right",
+  start: scene.outletBottom,
+  width: scene.openingWidth,
+};
+export function vertical(wall: Wall) {
+  return wall === "left" || wall === "right";
+}
+function validateOpening(name: string, opening: Opening) {
+  const length = vertical(opening.wall) ? scene.height : scene.width;
+  if (
+    !(
+      opening.start >= 0 &&
+      opening.width > 0 &&
+      opening.start + opening.width <= length
+    )
+  )
+    throw Error(
+      name +
+        " must fit within the " +
+        length +
+        " m wall and have positive width.",
+    );
+  if (
+    ![opening.start, opening.width].every((value) =>
+      Number.isInteger(value / h),
+    )
+  )
+    throw Error(`${name} position and width must be multiples of ${h} m.`);
+}
+
+// MAC face offsets along a wall, starting at its lower or left end.
+function boundaryFace(wall: Wall, index: number) {
+  switch (wall) {
+    case "left":
+      return (index + 1) * stride;
+    case "right":
+      return (index + 1) * stride + nx;
+    case "bottom":
+      return index + 1;
+    case "top":
+      return ny * stride + index + 1;
+  }
+}
+function openingFaces(opening: Opening) {
+  return Array.from({ length: opening.width / h }, (_, i) =>
+    boundaryFace(opening.wall, opening.start / h + i),
+  );
+}
 function inOpening(row: number, bottom: number): boolean {
   const y = (row - 0.5) * h;
   return y > bottom && y < bottom + scene.openingWidth;
@@ -109,13 +169,30 @@ export class Cavity {
   private nextV = new Float64Array(padded);
   private pressure = new Float64Array(cells);
 
-  constructor(readonly settings = { flux: scene.flux }) {
-    if (!(settings.flux > 0 && settings.flux <= 1.25 * scene.openingWidth))
+  readonly settings;
+  private readonly inletFaces: number[];
+  constructor({
+    flux = scene.flux,
+    inlet = defaultInlet,
+  }: { flux?: number; inlet?: Opening } = {}) {
+    validateOpening("Inlet", inlet);
+    if (
+      inlet.wall === defaultOutlet.wall &&
+      inlet.start < defaultOutlet.start + defaultOutlet.width &&
+      defaultOutlet.start < inlet.start + inlet.width
+    )
+      throw Error(
+        "Move the inlet or reduce its width to avoid overlapping the outlet.",
+      );
+    const limit = 1.25 * Math.min(inlet.width, defaultOutlet.width);
+    if (!(flux > 0 && flux <= limit))
       throw Error(
         "Enter a positive inlet rate up to " +
-          1.25 * scene.openingWidth +
-          " m²/s.",
+          limit +
+          " m²/s for these widths.",
       );
+    this.settings = { flux, inlet: Object.freeze({ ...inlet }) };
+    this.inletFaces = openingFaces(inlet);
   }
 
   get outflow(): number {
@@ -144,10 +221,14 @@ export class Cavity {
 
   step(): void {
     const { u, v, nextU, nextV, pressure } = this;
-    for (let j = 1; j <= ny; j++) {
-      u[j * stride] = inOpening(j, scene.inletBottom)
-        ? this.settings.flux / scene.openingWidth
-        : 0;
+    const { inlet, flux } = this.settings;
+    const normal = vertical(inlet.wall) ? u : v;
+    const predicted = vertical(inlet.wall) ? nextU : nextV;
+    const inwardSign =
+      inlet.wall === "left" || inlet.wall === "bottom" ? 1 : -1;
+    for (const face of this.inletFaces) {
+      normal[face] = (inwardSign * flux) / inlet.width;
+      predicted[face] = normal[face];
     }
     this.setGhostFaces();
     for (let j = 1; j <= ny; j++) {
@@ -162,7 +243,7 @@ export class Cavity {
       // determines its final velocity from the interior pressure gradient.
       nextU[left + nx] = inOpening(j, scene.outletBottom)
         ? nextU[left + nx - 1]
-        : 0;
+        : u[left + nx];
     }
     for (let j = 1; j < ny; j++) {
       for (let i = 1; i <= nx; i++) {
@@ -203,7 +284,11 @@ export class Cavity {
 
   /** Sample velocity in metres per second, with y increasing from the floor. */
   velocity(x: number, y: number): [number, number] {
-    if (y <= 0 || y >= scene.height) return [0, 0];
+    if (y <= 0 || y >= scene.height) {
+      if (x <= 0 || x >= scene.width) return [0, 0];
+      const face = boundaryFace(y <= 0 ? "bottom" : "top", Math.floor(x / h));
+      return [0, this.v[face]];
+    }
     if (x <= 0 || x >= scene.width) {
       const right = x >= scene.width;
       const row = 1 + Math.floor(y / h);

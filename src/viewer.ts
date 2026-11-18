@@ -1,6 +1,16 @@
-import { Cavity, scene } from "./solver.ts";
-function element<T extends Element>(selector: string): T {
-  const result = document.querySelector<T>(selector);
+import {
+  Cavity,
+  defaultOutlet,
+  type Opening,
+  type Wall,
+  scene,
+  vertical,
+} from "./solver.ts";
+function element<T extends Element>(
+  selector: string,
+  root: ParentNode = document,
+): T {
+  const result = root.querySelector<T>(selector);
   if (!result) throw Error(`Missing ${selector}`);
   return result;
 }
@@ -28,20 +38,28 @@ for (let y = 0; y <= scene.height; y += 0.25) {
     `<text x="-8" y="${height - y * scale + 4}" text-anchor="end">${y.toFixed(2)}</text>`,
   );
 }
-for (const [x, bottom, color] of [
-  [0, scene.inletBottom, "#67d8b4"],
-  [width, scene.outletBottom, "#ffb26d"],
-] as const) {
-  const y = height - bottom * scale;
-  element("#ports").insertAdjacentHTML(
-    "beforeend",
-    `<path d="M${x} ${y} v-${scene.openingWidth * scale}" stroke="${color}" stroke-width="6"/>`,
-  );
-}
 function showConditions() {
+  element("#ports").replaceChildren();
+  for (const [port, color] of [
+    [model.settings.inlet, "#67d8b4"],
+    [defaultOutlet, "#ffb26d"],
+  ] as const) {
+    const upright = vertical(port.wall);
+    const x = upright ? (port.wall === "left" ? 0 : width) : port.start * scale;
+    const y = upright
+      ? height - port.start * scale
+      : port.wall === "bottom"
+        ? height
+        : 0;
+    const direction = upright ? "v-" : "h";
+    element("#ports").insertAdjacentHTML(
+      "beforeend",
+      `<path d="M${x} ${y} ${direction}${port.width * scale}" stroke="${color}" stroke-width="6"/>`,
+    );
+  }
   const conditions = [
     ["Cavity", `${scene.width} × ${scene.height} m`],
-    ["Opening width", `${scene.openingWidth} m`],
+    ["Inlet width", `${model.settings.inlet.width} m`],
     ["Inlet flow", `${model.settings.flux} m²/s`],
     ["Calculated outflow", '<span id="outflow"></span> m²/s'],
     ["Viscosity", `${scene.viscosity} m²/s`],
@@ -52,6 +70,31 @@ function showConditions() {
 }
 showConditions();
 const rate = element<HTMLInputElement>("#rate");
+function openingEditor(name: string, initial: Opening) {
+  const group = document.createElement("fieldset");
+  group.innerHTML = `<legend>${name}</legend>
+    <label>Wall <select><option value="left">Left</option><option value="right">Right</option><option value="bottom">Bottom</option><option value="top">Top</option></select></label>
+    <label>Position (m) <input type="number" step="0.03125"></label>
+    <label>Width (m) <input type="number" step="0.03125"></label>`;
+  element("#geometry").append(group);
+  const select = element<HTMLSelectElement>("select", group);
+  const [start, width] = group.querySelectorAll("input");
+  function set(port: Opening) {
+    select.value = port.wall;
+    start.value = String(port.start);
+    width.value = String(port.width);
+  }
+  set(initial);
+  return {
+    set,
+    read: (): Opening => ({
+      wall: select.value as Wall,
+      start: start.valueAsNumber,
+      width: width.valueAsNumber,
+    }),
+  };
+}
+const inletEditor = openingEditor("Inlet", model.settings.inlet);
 rate.value = String(model.settings.flux);
 function draw() {
   const lines: string[] = [];
@@ -131,7 +174,7 @@ restart.addEventListener("click", () => reset(new Cavity(model.settings)));
 element("#settings").addEventListener("submit", (event) => {
   event.preventDefault();
   try {
-    reset(new Cavity({ flux: rate.valueAsNumber }));
+    reset(new Cavity({ flux: rate.valueAsNumber, inlet: inletEditor.read() }));
     element("#feedback").textContent = "";
   } catch (error) {
     element("#feedback").textContent = String(
@@ -141,6 +184,7 @@ element("#settings").addEventListener("submit", (event) => {
 });
 element("#defaults").addEventListener("click", () => {
   reset(new Cavity());
+  inletEditor.set(model.settings.inlet);
   rate.value = String(model.settings.flux);
   element("#feedback").textContent = "";
 });
