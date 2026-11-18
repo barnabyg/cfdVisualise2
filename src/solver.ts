@@ -246,10 +246,11 @@ function predict(
   u: number,
   v: number,
   dt: number,
-  ghostOffset: number,
   solid: Uint8Array,
-  cellOffset: number,
+  component: "u" | "v",
 ): number {
+  const ghostOffset = component === "u" ? stride : 1;
+  const cellOffset = component === "u" ? 1 : stride;
   const centre = field[k];
   // Mirror the tangential velocity across a solid wall half a cell away.
   const neighbour = (offset: number) =>
@@ -434,17 +435,7 @@ export class Cavity {
         const k = left + i;
         if (this.solid[k] || this.solid[k + 1]) continue;
         const cross = (v[k] + v[k + 1] + v[k - stride] + v[k - stride + 1]) / 4;
-        nextU[k] = predict(
-          stride,
-          u,
-          k,
-          u[k],
-          cross,
-          dt,
-          stride,
-          this.solid,
-          1,
-        );
+        nextU[k] = predict(stride, u, k, u[k], cross, dt, this.solid, "u");
       }
     }
     for (let j = 1; j < ny; j++) {
@@ -452,17 +443,7 @@ export class Cavity {
         const k = j * stride + i;
         if (this.solid[k] || this.solid[k + stride]) continue;
         const cross = (u[k] + u[k - 1] + u[k + stride] + u[k + stride - 1]) / 4;
-        nextV[k] = predict(
-          stride,
-          v,
-          k,
-          cross,
-          v[k],
-          dt,
-          1,
-          this.solid,
-          stride,
-        );
+        nextV[k] = predict(stride, v, k, cross, v[k], dt, this.solid, "v");
       }
     }
     const wall = this.settings.outlet.wall;
