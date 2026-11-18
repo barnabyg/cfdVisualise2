@@ -81,6 +81,22 @@
           <section>
             <h2>Flow conditions</h2>
             <dl id="conditions"></dl>
+            <p>Flow rates in m²/s per unit depth.</p>
+            <form id="settings" novalidate>
+              <label
+                >Inlet rate
+                <input id="rate" type="number" step="any" required></label
+              >
+              <p>
+                Position is the start of the opening, measured from the floor on
+                vertical walls and from the left on horizontal walls. Grid
+                spacing is <span id="grid-spacing"></span> m.
+              </p>
+              <div id="geometry"></div>
+              <p id="feedback" role="alert"></p>
+              <button type="submit">Apply</button>
+              <button id="defaults" type="button">Restore defaults</button>
+            </form>
           </section>
         </aside>
       </div>
