@@ -28,6 +28,18 @@ Restore defaults, set height to **0.875 m** and apply. The outlet extends past t
 
 Each dimension supports **0.5 to 2 m** in steps of **0.03125 m**, bounding the size of the pressure solve while retaining square grid cells.
 
+## Compare flow around an obstacle
+
+With Node.js 24.13 or later, npm and a browser installed, start in the checkout root in PowerShell 7.
+
+```powershell
+.\run.bat
+```
+
+Open http://127.0.0.1:41673/ and restore defaults. Run the empty cavity and pause near **1 s**. Select **Square**, keeping the centre at **(0.5, 0.1875) m** and side length **0.25 m**. Apply, run and pause at the same time. The incoming jet splits around the square and its interior stays clear. Switch only the shape to **Circle**. Its diameter equals the previous side length. Apply, run and pause near **1 s** again. Compare the arrows where the square had upstream corners. The circular wall follows the edges of cells whose centres lie inside the disc. Restart retains the applied obstacle. Select **None**, apply and repeat to see the original jet again.
+
+Coordinates are measured from the lower left. The bounding box must align with grid lines, span at least four cells and leave one fluid cell at each cavity wall. Edit the centre or size together with any cavity changes, then apply to start from rest.
+
 ## Numerical model
 
 To check playback, pause near 2 s while the return current is developing. Watch the time and arrows hold, then resume and follow the same current. Restart while running or paused. The time should return to zero with a still field. Press Run again and look for the same turn above the inlet.

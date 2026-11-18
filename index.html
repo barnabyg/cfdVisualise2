@@ -59,6 +59,12 @@
               stroke-linejoin="round"
               stroke-width="1.8"
             />
+            <path
+              id="obstacle"
+              fill="#344b56"
+              stroke="#aec1c6"
+              stroke-width="1.5"
+            />
             <g id="ports"></g>
           </svg>
           <div class="legend">
@@ -103,6 +109,46 @@
                 >
               </fieldset>
               <div id="geometry"></div>
+              <fieldset>
+                <legend>Obstacle</legend>
+                <label
+                  >Shape
+                  <select id="shape">
+                    <option value="none">None</option>
+                    <option value="square">Square</option>
+                    <option value="circle">Circle</option>
+                  </select></label
+                >
+                <div id="obstacle-settings" hidden>
+                  <label
+                    >Centre x (m)
+                    <input
+                      id="centre-x"
+                      type="number"
+                      step="any"
+                      value="0.5"
+                    ></label
+                  >
+                  <label
+                    >Centre y (m)
+                    <input
+                      id="centre-y"
+                      type="number"
+                      step="any"
+                      value="0.1875"
+                    ></label
+                  >
+                  <label
+                    ><span id="size-label">Side length (m)</span>
+                    <input
+                      id="size"
+                      type="number"
+                      step="0.03125"
+                      value="0.25"
+                    ></label
+                  >
+                </div>
+              </fieldset>
               <p id="feedback" role="alert"></p>
               <button type="submit">Apply</button>
               <button id="defaults" type="button">Restore defaults</button>

@@ -47,6 +47,18 @@ function showConditions() {
     "viewBox",
     `${originX} -20 ${plotWidth + leftMargin + rightMargin} ${height + 57}`,
   );
+  // Trace the perimeter of the resolved rows, covering arrow tips at the wall.
+  const spans = model.obstacleSpans;
+  const cell = scene.gridSpacing * scale;
+  const perimeter: string[] = [];
+  for (const { row, start } of spans)
+    perimeter.push(`L${start * cell} ${height - row * cell}v${-cell}`);
+  for (const { row, end } of spans.slice().reverse())
+    perimeter.push(`L${end * cell} ${height - (row + 1) * cell}v${cell}`);
+  element("#obstacle").setAttribute(
+    "d",
+    perimeter.length ? `${perimeter.join("").replace(/^L/, "M")}Z` : "",
+  );
   arrows.length = 0;
   field.replaceChildren();
   for (let y = height - spacing / 2; y > 0; y -= spacing) {
@@ -151,6 +163,16 @@ element("#grid-spacing").textContent = String(scene.gridSpacing);
 const inletEditor = openingEditor("Inlet", model.settings.inlet);
 const outletEditor = openingEditor("Outlet", model.settings.outlet);
 rate.value = String(model.settings.flux);
+const shape = element<HTMLSelectElement>("#shape");
+const centreX = element<HTMLInputElement>("#centre-x");
+const centreY = element<HTMLInputElement>("#centre-y");
+const size = element<HTMLInputElement>("#size");
+function showObstacleEditor() {
+  element("#size-label").textContent =
+    shape.value === "circle" ? "Diameter (m)" : "Side length (m)";
+  element<HTMLElement>("#obstacle-settings").hidden = shape.value === "none";
+}
+shape.addEventListener("change", showObstacleEditor);
 function draw() {
   const width = model.settings.width * scale,
     height = model.settings.height * scale;
@@ -249,6 +271,15 @@ element("#settings").addEventListener("submit", (event) => {
         width: widthInput.valueAsNumber,
         height: heightInput.valueAsNumber,
         flux: rate.valueAsNumber,
+        obstacle:
+          shape.value === "none"
+            ? undefined
+            : {
+                shape: shape.value === "circle" ? "circle" : "square",
+                x: centreX.valueAsNumber,
+                y: centreY.valueAsNumber,
+                size: size.valueAsNumber,
+              },
         inlet: inletEditor.read(),
         outlet: outletEditor.read(),
       }),
@@ -262,6 +293,10 @@ element("#settings").addEventListener("submit", (event) => {
 });
 element("#defaults").addEventListener("click", () => {
   reset(new Cavity());
+  shape.value = "none";
+  for (const input of [centreX, centreY, size])
+    input.value = input.defaultValue;
+  showObstacleEditor();
   setDimensions();
   outletEditor.set(model.settings.outlet);
   inletEditor.set(model.settings.inlet);
