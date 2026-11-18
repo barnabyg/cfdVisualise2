@@ -50,11 +50,13 @@ function draw() {
       const [u, v] = model.velocity(x / scale, (height - y) / scale);
       const speed = Math.hypot(u, v);
       if (speed === 0) continue;
-      const dx = u * 24,
-        dy = -v * 24;
+      // Compress the speed range so slow return flow has a readable arrowhead.
+      const length = (22 * Math.asinh(8 * speed)) / Math.asinh(8);
+      const dx = (u / speed) * length,
+        dy = (-v / speed) * length;
       const tipX = x + dx / 2,
         tipY = y + dy / 2;
-      const head = Math.min(0.38, 4 / (speed * 24));
+      const head = Math.min(0.42, 4.8 / length);
       const point = (a: number, b: number) => `${a.toFixed(2)} ${b.toFixed(2)}`;
       lines.push(
         "M" +

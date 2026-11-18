@@ -10,6 +10,10 @@ Open http://127.0.0.1:5173/ and press **Run**. The cavity starts with still flui
 
 ## Numerical model
 
+The 1.5 × 1 m cavity admits 0.1875 m²/s per unit depth through a 0.1875 m opening starting 0.0625 m above the floor. The inlet speed is 1 m/s. The equally wide outlet starts 0.75 m above the floor. Kinematic viscosity is 0.002 m²/s.
+
+Around **1–2 simulated seconds**, watch for arrows turning left above the jet. By **3–5 s**, trace the jet along the floor, up the right side, back across the upper cavity and down the left. Around **20 s**, the pattern looks steady while the jet keeps flowing. The fixed arrow-length scale uses an inverse hyperbolic sine to make slow return currents legible alongside the faster jet.
+
 A 48 × 32 staggered grid advances the viscous incompressible momentum equations with upwind convection, centred diffusion and a fixed 0.0125 s step. Each step solves the pressure Poisson equation by banded Cholesky factorisation and projects the face velocities. Stationary walls impose no slip. The inlet prescribes normal velocity. The outlet sets pressure to zero and its normal velocity follows from the projection.
 
 The numerical test independently integrates outward-normal velocity on the two walls at 0.1, 1 and 6 simulated seconds. It requires inward flux at the inlet, outward flux at the outlet and relative imbalance below 0.1%. This tolerance covers face sampling and floating-point roundoff on the aligned grid. Flux balance does not estimate spatial discretisation error.
