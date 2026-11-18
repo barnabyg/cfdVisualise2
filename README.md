@@ -48,7 +48,9 @@ To check playback, pause near 2 s while the return current is developing. Watch 
 
 The 1.5 × 1 m cavity admits 0.1875 m²/s per unit depth through a 0.1875 m opening starting 0.0625 m above the floor. The inlet speed is 1 m/s. The equally wide outlet starts 0.75 m above the floor. Kinematic viscosity is 0.002 m²/s.
 
-Around **1–2 simulated seconds**, watch for arrows turning left above the jet. By **3–5 s**, trace the jet along the floor, up the right side, back across the upper cavity and down the left. Around **20 s**, the pattern looks steady while the jet keeps flowing. The fixed arrow-length scale uses an inverse hyperbolic sine to make slow return currents legible alongside the faster jet.
+Around **1–2 simulated seconds**, watch for arrows turning left above the jet. By **3–5 s**, trace the jet along the floor, up the right side, back across the upper cavity and down the left. The fixed arrow-length scale uses an inverse hyperbolic sine to make slow return currents legible alongside the faster jet.
+
+Press **Run** with the default settings and leave it running. At about **21 simulated seconds**, the status changes to **Converged**, and the time and final flow field hold. Press **Restart** to return to rest and run again. A run stops once every face velocity component changes by at most **0.001% of the inlet speed per 0.0125 s**, scaled to each solver substep, for one consecutive simulated second. Flows that keep changing above this tolerance continue running.
 
 A staggered grid (48 × 32 cells at the default size) advances the viscous incompressible momentum equations with upwind convection, centred diffusion and 0.0125 s display steps subdivided when needed for advection and diffusion stability. Each step solves the pressure Poisson equation by banded Cholesky factorisation and projects the face velocities. Stationary walls impose no slip. The inlet prescribes normal velocity. The outlet sets pressure to zero and its normal velocity follows from the projection.
 

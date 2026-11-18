@@ -39,11 +39,26 @@ test("the jet develops a visible return current and settles", async ({
   expect(
     parseFloat((await page.locator("#time").textContent()) ?? ""),
   ).toBeCloseTo(20, 0);
+  const colours = () =>
+    field
+      .locator("path")
+      .evaluateAll((paths) => paths.map((path) => path.getAttribute("stroke")));
+  const settledColours = await colours();
+  for (let frame = 0; frame < 12; frame++) {
+    await page.clock.runFor(16);
+    const currentColours = await colours();
+    const changed = currentColours.filter(
+      (colour, index) => colour !== settledColours[index],
+    ).length;
+    expect(changed).toBeLessThan(settledColours.length * 0.01);
+  }
+
   await page.clock.runFor(4000);
   const later = await shafts();
+  await expect(page.getByRole("status")).toHaveText("Converged");
   expect(
     parseFloat((await page.locator("#time").textContent()) ?? ""),
-  ).toBeCloseTo(24, 0);
+  ).toBeCloseTo(21, 0);
   for (const sample of [settled, later]) {
     expect(
       sample.some((s) => s.x < 20 && s.y > 300 && s.y < 375 && s.dx > 8),
@@ -59,18 +74,4 @@ test("the jet develops a visible return current and settles", async ({
     ),
   );
   expect(maxDrift).toBeLessThan(1);
-
-  const colours = () =>
-    field
-      .locator("path")
-      .evaluateAll((paths) => paths.map((path) => path.getAttribute("stroke")));
-  const settledColours = await colours();
-  for (let frame = 0; frame < 12; frame++) {
-    await page.clock.runFor(16);
-    const currentColours = await colours();
-    const changed = currentColours.filter(
-      (colour, index) => colour !== settledColours[index],
-    ).length;
-    expect(changed).toBeLessThan(settledColours.length * 0.01);
-  }
 });

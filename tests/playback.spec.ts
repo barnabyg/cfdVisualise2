@@ -44,3 +44,36 @@ test("hold, continue and replay a developing field", async ({ page }) => {
     ).toBeLessThan(1);
   }
 });
+
+test("a converged run holds its final field until restarted", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2025-01-01T00:00:00Z") });
+  await page.clock.pauseAt(new Date("2025-01-01T00:00:01Z"));
+  await page.goto("/");
+  await page.getByLabel("Grid density").selectOption({ label: "Sparse" });
+  const run = page.getByRole("button", { name: "Run", exact: true });
+  const status = page.getByRole("status");
+  const time = page.locator("#time");
+  const arrows = page.locator(".velocity");
+
+  await run.click();
+  await page.clock.runFor(2000);
+  await expect(status).toHaveText("Running");
+  await page.clock.runFor(23000);
+  await expect(status).toHaveText("Converged");
+  await expect(run).toBeDisabled();
+  const finalTime = await time.textContent();
+  const finalField = await renderedGeometry(arrows);
+  expect(finalField).not.toBe("");
+  await page.clock.runFor(5000);
+  await expect(time).toHaveText(finalTime ?? "");
+  expect(await renderedGeometry(arrows)).toBe(finalField);
+
+  await page.getByRole("button", { name: "Restart" }).click();
+  await expect(status).toHaveText("At rest");
+  await expect(time).toHaveText("0.00 s");
+  await run.click();
+  await page.clock.runFor(2000);
+  await expect(status).toHaveText("Running");
+});
