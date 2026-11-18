@@ -293,6 +293,7 @@ function interpolate(
 
 export class Cavity {
   time = 0;
+  private substeps = 1;
   private readonly grid: Grid;
   private u: Float64Array;
   private v: Float64Array;
@@ -398,21 +399,25 @@ export class Cavity {
   }
 
   step(): void {
-    // Bound the explicit advection and diffusion step as the field develops.
     let remaining = scene.dt;
-    while (remaining > 0) {
+    let stepsLeft = this.substeps;
+    while (stepsLeft > 0) {
       let maxU = this.settings.flux / this.settings.inlet.width,
         maxV = 0;
       for (let k = 0; k < this.u.length; k++) {
         maxU = Math.max(maxU, Math.abs(this.u[k]));
         maxV = Math.max(maxV, Math.abs(this.v[k]));
       }
-      const dt = Math.min(
-        remaining,
-        0.9 / ((maxU + maxV) / h + (4 * scene.viscosity) / (h * h)),
-      );
+      const limit = 0.9 / ((maxU + maxV) / h + (4 * scene.viscosity) / (h * h));
+      // Keep the finer subdivision for this run so the pressure calculation
+      // can settle at a consistent timestep near the stability limit.
+      this.substeps = Math.max(this.substeps, Math.ceil(scene.dt / limit));
+      stepsLeft = Math.max(stepsLeft, Math.ceil(remaining / limit));
+      // Share the remaining time evenly to avoid a tiny final correction.
+      const dt = remaining / stepsLeft;
       this.advance(dt);
       remaining -= dt;
+      stepsLeft--;
     }
     this.time += scene.dt;
   }
