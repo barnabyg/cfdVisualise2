@@ -33,11 +33,11 @@
             <defs>
               <pattern
                 id="dots"
-                width="25"
-                height="25"
+                width="12.5"
+                height="12.5"
                 patternUnits="userSpaceOnUse"
               >
-                <circle cx="12.5" cy="12.5" r="1.25" fill="#6c8993" />
+                <circle cx="6.25" cy="6.25" r="1.25" fill="#6c8993" />
               </pattern>
               <clipPath id="inside"><use href="#walls" /></clipPath>
             </defs>
@@ -57,7 +57,7 @@
               stroke="#d6f5ed"
               stroke-linecap="round"
               stroke-linejoin="round"
-              stroke-width="1.8"
+              stroke-width="1.2"
             />
             <path
               id="obstacle"
@@ -90,13 +90,13 @@
               >Grid density
               <select id="density">
                 <option value="50">Sparse</option>
-                <option value="25" selected>Standard</option>
-                <option value="12.5">Dense</option>
+                <option value="25">Standard</option>
+                <option value="12.5" selected>Dense</option>
               </select>
             </label>
           </section>
-          <section>
-            <h2>Flow conditions</h2>
+          <details>
+            <summary><h2>Flow conditions</h2></summary>
             <dl id="conditions"></dl>
             <p>Flow rates in m²/s per unit depth.</p>
             <form id="settings" novalidate>
@@ -161,7 +161,7 @@
               <button type="submit">Apply</button>
               <button id="defaults" type="button">Restore defaults</button>
             </form>
-          </section>
+          </details>
         </aside>
       </div>
     </main>
