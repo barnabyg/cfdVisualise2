@@ -47,10 +47,55 @@ function gridCells(name: string, length: number) {
   return length / h;
 }
 
+export interface Obstacle {
+  readonly shape: "square";
+  readonly x: number;
+  readonly y: number;
+  readonly size: number;
+}
+
 interface Grid {
   nx: number;
   ny: number;
   stride: number;
+}
+
+// Row spans describe the same solid cells in the solver and the plot.
+function resolveObstacle(
+  obstacle: Obstacle | undefined,
+  { nx, ny, stride }: Grid,
+) {
+  const solid = new Uint8Array(stride * (ny + 2));
+  const spans: { row: number; start: number; end: number }[] = [];
+  if (obstacle) {
+    const { x, y, size } = obstacle;
+    const left = (x - size / 2) / h,
+      bottom = (y - size / 2) / h,
+      cells = size / h;
+    if (!(Number.isInteger(cells) && cells >= 4))
+      throw Error(
+        `Obstacle size must span at least four cells and be a multiple of ${h} m.`,
+      );
+    if (![left, bottom].every(Number.isInteger))
+      throw Error(
+        "Place the obstacle so its bounding box edges align with grid lines.",
+      );
+    if (left < 1 || bottom < 1 || left + cells >= nx || bottom + cells >= ny)
+      throw Error(
+        "Leave at least one fluid cell between the obstacle and every cavity wall.",
+      );
+    for (let row = bottom; row < bottom + cells; row++) {
+      const start = left,
+        end = left + cells;
+      spans.push({ row, start, end });
+      solid.fill(
+        1,
+        (row + 1) * stride + start + 1,
+        (row + 1) * stride + end + 1,
+      );
+    }
+  }
+  return { solid, spans };
 }
 
 function validateOpening(
@@ -124,7 +169,8 @@ function outletBoundary(grid: Grid, opening: Opening) {
 // Constant negative Laplacian on pressure cells, factored once. Columns of
 // the cavity are contiguous so the triangular factor needs only ny+1 bands.
 function pressureFactor(
-  { nx, ny }: Grid,
+  { nx, ny, stride }: Grid,
+  solid: Uint8Array,
   outletCells: Set<number>,
 ): Float64Array {
   const cells = nx * ny;
@@ -135,15 +181,21 @@ function pressureFactor(
       const row = i * ny + j;
       const base = row * band;
       const outlet = outletCells.has(row);
-      // Dirichlet p=0 lies half a cell from the last pressure centre.
+      const k = (j + 1) * stride + i + 1;
+      if (solid[k]) {
+        lower[base] = 1;
+        continue;
+      }
+      const left = i > 0 && !solid[k - 1];
+      const below = j > 0 && !solid[k - stride];
       lower[base] =
-        Number(i > 0) +
-        Number(i < nx - 1) +
-        Number(j > 0) +
-        Number(j < ny - 1) +
+        Number(left) +
+        Number(below) +
+        Number(i < nx - 1 && !solid[k + 1]) +
+        Number(j < ny - 1 && !solid[k + stride]) +
         (outlet ? 2 : 0);
-      if (i > 0) lower[base + ny] = -1;
-      if (j > 0) lower[base + 1] = -1;
+      if (left) lower[base + ny] = -1;
+      if (below) lower[base + 1] = -1;
       for (let col = Math.max(0, row - ny); col <= row; col++) {
         let value = lower[base + row - col];
         for (let k = Math.max(0, row - ny); k < col; k++) {
@@ -188,12 +240,22 @@ function predict(
   u: number,
   v: number,
   dt: number,
+  ghostOffset: number,
+  solid: Uint8Array,
+  cellOffset: number,
 ): number {
   const centre = field[k];
-  const left = field[k - 1];
-  const right = field[k + 1];
-  const below = field[k - stride];
-  const above = field[k + stride];
+  // Mirror the tangential velocity across a solid wall half a cell away.
+  const neighbour = (offset: number) =>
+    Math.abs(offset) === ghostOffset &&
+    solid[k + offset] &&
+    solid[k + offset + cellOffset]
+      ? -centre
+      : field[k + offset];
+  const left = neighbour(-1),
+    right = neighbour(1);
+  const below = neighbour(-stride),
+    above = neighbour(stride);
   const convection =
     u * (u >= 0 ? centre - left : right - centre) +
     v * (v >= 0 ? centre - below : above - centre);
@@ -233,6 +295,8 @@ export class Cavity {
   private pressure: Float64Array;
 
   readonly settings;
+  private readonly solid;
+  readonly obstacleSpans;
   private readonly inletFaces: number[];
   private readonly outletBoundary;
   private readonly factor;
@@ -242,12 +306,14 @@ export class Cavity {
     flux = scene.flux,
     inlet = defaultInlet,
     outlet = defaultOutlet,
+    obstacle,
   }: {
     width?: number;
     height?: number;
     flux?: number;
     inlet?: Opening;
     outlet?: Opening;
+    obstacle?: Obstacle;
   } = {}) {
     const nx = gridCells("width", width);
     const ny = gridCells("height", height);
@@ -268,6 +334,9 @@ export class Cavity {
       );
     const stride = nx + 2;
     this.grid = { nx, ny, stride };
+    const { solid, spans } = resolveObstacle(obstacle, this.grid);
+    this.solid = solid;
+    this.obstacleSpans = spans;
     const padded = stride * (ny + 2);
     this.u = new Float64Array(padded);
     this.v = new Float64Array(padded);
@@ -278,12 +347,14 @@ export class Cavity {
       width,
       height,
       flux,
+      obstacle: obstacle && Object.freeze({ ...obstacle }),
       inlet: Object.freeze({ ...inlet }),
       outlet: Object.freeze({ ...outlet }),
     });
     this.outletBoundary = outletBoundary(this.grid, outlet);
     this.factor = pressureFactor(
       this.grid,
+      solid,
       new Set(this.outletBoundary.map((entry) => entry.cell)),
     );
     this.inletFaces = openingFaces(this.grid, inlet);
@@ -355,15 +426,37 @@ export class Cavity {
       const left = j * stride;
       for (let i = 1; i < nx; i++) {
         const k = left + i;
+        if (this.solid[k] || this.solid[k + 1]) continue;
         const cross = (v[k] + v[k + 1] + v[k - stride] + v[k - stride + 1]) / 4;
-        nextU[k] = predict(stride, u, k, u[k], cross, dt);
+        nextU[k] = predict(
+          stride,
+          u,
+          k,
+          u[k],
+          cross,
+          dt,
+          stride,
+          this.solid,
+          1,
+        );
       }
     }
     for (let j = 1; j < ny; j++) {
       for (let i = 1; i <= nx; i++) {
         const k = j * stride + i;
+        if (this.solid[k] || this.solid[k + stride]) continue;
         const cross = (u[k] + u[k - 1] + u[k + stride] + u[k + stride - 1]) / 4;
-        nextV[k] = predict(stride, v, k, cross, v[k], dt);
+        nextV[k] = predict(
+          stride,
+          v,
+          k,
+          cross,
+          v[k],
+          dt,
+          1,
+          this.solid,
+          stride,
+        );
       }
     }
     const wall = this.settings.outlet.wall;
@@ -392,8 +485,11 @@ export class Cavity {
       for (let j = 0; j < ny; j++) {
         const k = (j + 1) * stride + i + 1;
         const row = i * ny + j;
-        if (i < nx - 1) nextU[k] += pressure[row] - pressure[row + ny];
-        if (j < ny - 1) nextV[k] += pressure[row] - pressure[row + 1];
+        if (this.solid[k]) continue;
+        if (i < nx - 1 && !this.solid[k + 1])
+          nextU[k] += pressure[row] - pressure[row + ny];
+        if (j < ny - 1 && !this.solid[k + stride])
+          nextV[k] += pressure[row] - pressure[row + 1];
       }
     }
     this.u = nextU;
@@ -437,6 +533,12 @@ export class Cavity {
             free ? interpolate(stride, this.u, x / h, y / h + 0.5) : 0,
             this.v[face],
           ];
+    }
+    if (this.settings.obstacle) {
+      // Include both neighbours when the sample lies exactly on a grid face.
+      for (let j = Math.ceil(y / h); j <= Math.floor(y / h) + 1; j++)
+        for (let i = Math.ceil(x / h); i <= Math.floor(x / h) + 1; i++)
+          if (this.solid[j * stride + i]) return [0, 0];
     }
     return [
       interpolate(stride, this.u, x / h, y / h + 0.5),
