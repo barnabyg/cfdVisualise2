@@ -158,3 +158,113 @@ function arrowAt(path: string, sampleX: number, sampleY: number) {
   if (!shaft) throw Error("Missing arrow at sample point");
   return shaft;
 }
+
+test("resize the cavity, correct an opening, restart and restore defaults", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const group = page.getByRole("group", { name: "Cavity", exact: true });
+  const w = group.getByLabel("Width"),
+    h = group.getByLabel("Height");
+  const outlet = page
+    .getByRole("group", { name: "Outlet", exact: true })
+    .getByLabel("Position");
+  const click = (name: string) =>
+    page.getByRole("button", { name, exact: true }).click();
+  const walls = page.locator("#walls"),
+    marker = page.locator("#ports path").last();
+  const field = page.locator(".velocity");
+  const bounds = await walls.boundingBox();
+  if (!bounds) throw Error("Missing cavity");
+  for (const [width, height, exit, x, y] of [
+    ["1.5", "1.25", "M600 200 v-75", 312.5, 12.5],
+    ["1.5", "1.03125", "M600 112.5 v-75", 12.5, 400],
+    ["1.75", "1", "M700 100 v-75", 662.5, 112.5],
+  ] as const) {
+    await w.fill(width);
+    await h.fill(height);
+    await click("Apply");
+    await expect(field).toHaveAttribute("d", "");
+    await expect(marker).toHaveAttribute("d", exit);
+    const box = await walls.boundingBox();
+    if (!box) throw Error("Missing resized cavity");
+    // Browser bounds include the wall stroke. Allow one display pixel.
+    expect(
+      Math.abs(box.width - (bounds.width * Number(width)) / 1.5),
+    ).toBeLessThan(1);
+    expect(Math.abs(box.height - bounds.height * Number(height))).toBeLessThan(
+      1,
+    );
+    await click("Run");
+    await expect(field).toHaveAttribute("d", /L/);
+    await click("Pause");
+    arrowAt((await field.getAttribute("d")) ?? "", x, y);
+  }
+  await click("Restore defaults");
+  await click("Run");
+  await expect(field).toHaveAttribute("d", /L/);
+  await click("Pause");
+  const paused = (await field.getAttribute("d")) ?? "";
+  for (const value of ["", "0", "-1", "0.51", "2.03125"]) {
+    await w.fill(value);
+    await click("Apply");
+    await expect(page.getByRole("alert")).toContainText("between 0.5 and 2");
+    await expect(field).toHaveAttribute("d", paused);
+  }
+  await w.fill("1.5");
+  await h.fill("0.875");
+  await click("Apply");
+  await expect(page.getByRole("alert")).toContainText("Outlet");
+  await expect(field).toHaveAttribute("d", paused);
+  await outlet.fill("0.625");
+  await click("Apply");
+  await expect(page.getByRole("alert")).toBeEmpty();
+  await expect(field).toHaveAttribute("d", "");
+  await expect(walls).toHaveAttribute("height", "350");
+  await expect(marker).toHaveAttribute("d", "M600 100 v-75");
+  await click("Run");
+  await expect(page.locator("#outflow")).toHaveText("0.1875");
+  await h.fill("2");
+  await click("Restart");
+  await expect(walls).toHaveAttribute("height", "350");
+  await expect(field).toHaveAttribute("d", "");
+  await expect(marker).toHaveAttribute("d", "M600 100 v-75");
+  await click("Restore defaults");
+  await expect(w).toHaveValue("1.5");
+  await expect(h).toHaveValue("1");
+  await expect(outlet).toHaveValue("0.75");
+  await expect(walls).toHaveAttribute("height", "400");
+});
+
+test("compare the shallow and tall currents at the same place and time", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  const height = page
+    .getByRole("group", { name: "Cavity", exact: true })
+    .getByLabel("Height");
+  await page
+    .getByRole("group", { name: "Outlet", exact: true })
+    .getByLabel("Position")
+    .fill("0.625");
+  for (const [depth, y, minSlope, maxSlope] of [
+    ["0.875", 12.5, 0, 0.15],
+    ["1.25", 162.5, 0.35, 0.7],
+  ] as const) {
+    await height.fill(depth);
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await page.clock.runFor(1000);
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    const [x0, y0, x1, y1] = arrowAt(
+      (await page.locator(".velocity").getAttribute("d")) ?? "",
+      312.5,
+      y,
+    );
+    expect(x1).toBeGreaterThan(x0);
+    const slope = (y0 - y1) / (x1 - x0);
+    expect(slope).toBeGreaterThan(minSlope);
+    expect(slope).toBeLessThan(maxSlope);
+  }
+});

@@ -9,7 +9,7 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
       return { outward: -u, tangent: v };
     }
     case "right": {
-      const [u, v] = cavity.velocity(scene.width, position);
+      const [u, v] = cavity.velocity(cavity.settings.width, position);
       return { outward: u, tangent: v };
     }
     case "bottom": {
@@ -17,26 +17,36 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
       return { outward: -v, tangent: u };
     }
     case "top": {
-      const [u, v] = cavity.velocity(position, scene.height);
+      const [u, v] = cavity.velocity(position, cavity.settings.height);
       return { outward: v, tangent: u };
     }
   }
 }
 
-for (const flux of [scene.flux, scene.flux / 2, 2 ** -1022])
-  test(`boundary flux at rate ${flux}`, () => {
-    const cavity = new Cavity({ flux });
+for (const [flux, width, height] of [
+  [scene.flux, 1.5, 1],
+  [scene.flux / 2, 1.5, 1],
+  [2 ** -1022, 1.5, 1],
+  [scene.flux, 1.75, 1.25],
+])
+  test(`boundary flux at rate ${flux} in ${width} x ${height} m`, () => {
+    const cavity = new Cavity({ flux, width, height });
     // Midpoint quadrature over the entire walls, including their solid portions.
-    const samples = 960;
-    const dy = scene.height / samples;
+    const samples = height * 960;
+    const dy = height / samples;
     for (const instant of [0.1, 1, 6]) {
       while (cavity.time < instant) cavity.step();
+      if (height > scene.height)
+        assert.ok(
+          Math.hypot(...cavity.velocity(0.75, 1.125)) > 0,
+          "flow in the added space",
+        );
       let inlet = 0;
       let outlet = 0;
       for (let row = 0; row < samples; row++) {
         const y = (row + 0.5) * dy;
         const left = cavity.velocity(0, y)[0];
-        const right = cavity.velocity(scene.width, y)[0];
+        const right = cavity.velocity(width, y)[0];
         if (y > scene.inletBottom && y < scene.inletBottom + scene.openingWidth)
           inlet -= left * dy;
         else assert.equal(left, 0, "impermeable left wall");
@@ -76,19 +86,30 @@ for (const wall of ["left", "right", "bottom", "top"] as const) {
   });
 }
 
-for (const wall of ["top", "bottom", "left", "right"] as const) {
-  test(`relocated ${wall} outlet discharges across its active faces only`, () => {
+for (const [wall, cavityWidth, height] of [
+  ["top", 1.5, 1],
+  ["bottom", 1.5, 1],
+  ["left", 1.5, 1],
+  ["right", 1.5, 1],
+  ["top", 1.75, 1.25],
+] as const) {
+  test(`relocated ${wall} outlet in ${cavityWidth} x ${height} m discharges across its active faces only`, () => {
     for (const width of [0.1875, 0.09375]) {
       const start = 0.5;
-      const cavity = new Cavity({ outlet: { wall, start, width } });
+      const cavity = new Cavity({
+        width: cavityWidth,
+        height,
+        outlet: { wall, start, width },
+      });
       for (const instant of [0.1, 1, 6]) {
         while (cavity.time < instant) cavity.step();
         let inflow = 0,
           outflow = 0;
         for (const side of ["left", "right", "bottom", "top"] as const) {
           const upright = side === "left" || side === "right";
-          const ds = (upright ? scene.height : scene.width) / 960;
-          for (let i = 0; i < 960; i++) {
+          const ds = 1 / 960;
+          const length = upright ? height : cavityWidth;
+          for (let i = 0; i < length / ds; i++) {
             const pos = (i + 0.5) * ds;
             const { outward } = sampleWall(cavity, side, pos);
             if (side === wall && pos >= start && pos < start + width)

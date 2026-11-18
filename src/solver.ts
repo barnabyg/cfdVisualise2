@@ -1,14 +1,11 @@
-const nx = 48;
-const ny = 32;
 const h = 1 / 32;
-const stride = nx + 2;
-const cells = nx * ny;
-const padded = stride * (ny + 2);
 
 export const scene = Object.freeze({
   gridSpacing: h,
-  width: nx * h,
-  height: ny * h,
+  minDimension: 0.5,
+  maxDimension: 2,
+  width: 1.5,
+  height: 1,
   inletBottom: 2 * h,
   outletBottom: 24 * h,
   openingWidth: 6 * h,
@@ -36,15 +33,40 @@ const defaultOutlet: Opening = {
 export function vertical(wall: Wall) {
   return wall === "left" || wall === "right";
 }
-function validateOpening(name: string, opening: Opening) {
-  const length = vertical(opening.wall) ? scene.height : scene.width;
+function gridCells(name: string, length: number) {
   if (
     !(
-      opening.start >= 0 &&
-      opening.width > 0 &&
-      opening.start + opening.width <= length
+      length >= scene.minDimension &&
+      length <= scene.maxDimension &&
+      Number.isInteger(length / h)
     )
   )
+    throw Error(
+      `Cavity ${name} must be between ${scene.minDimension} and ${scene.maxDimension} m in multiples of ${h} m.`,
+    );
+  return length / h;
+}
+
+interface Grid {
+  nx: number;
+  ny: number;
+  stride: number;
+}
+
+function validateOpening(
+  name: string,
+  opening: Opening,
+  width: number,
+  height: number,
+) {
+  const length = vertical(opening.wall) ? height : width;
+  if (opening.start + opening.width > length) {
+    const end = vertical(opening.wall) ? "top" : "right";
+    throw Error(
+      `${name} extends beyond the ${end} wall. Position plus width must fit within ${length} m.`,
+    );
+  }
+  if (!(opening.start >= 0 && opening.width > 0))
     throw Error(
       name +
         " must fit within the " +
@@ -60,7 +82,7 @@ function validateOpening(name: string, opening: Opening) {
 }
 
 // MAC face offsets along a wall, starting at its lower or left end.
-function boundaryFace(wall: Wall, index: number) {
+function boundaryFace({ nx, ny, stride }: Grid, wall: Wall, index: number) {
   switch (wall) {
     case "left":
       return (index + 1) * stride;
@@ -72,17 +94,18 @@ function boundaryFace(wall: Wall, index: number) {
       return ny * stride + index + 1;
   }
 }
-function openingFaces(opening: Opening) {
+function openingFaces(grid: Grid, opening: Opening) {
   return Array.from({ length: opening.width / h }, (_, i) =>
-    boundaryFace(opening.wall, opening.start / h + i),
+    boundaryFace(grid, opening.wall, opening.start / h + i),
   );
 }
 function outwardSign(wall: Wall) {
   return wall === "left" || wall === "bottom" ? -1 : 1;
 }
 
-function outletBoundary(opening: Opening) {
-  return openingFaces(opening).map((face, i) => {
+function outletBoundary(grid: Grid, opening: Opening) {
+  const { nx, ny } = grid;
+  return openingFaces(grid, opening).map((face, i) => {
     const index = opening.start / h + i;
     const column = vertical(opening.wall)
       ? opening.wall === "left"
@@ -100,8 +123,12 @@ function outletBoundary(opening: Opening) {
 
 // Constant negative Laplacian on pressure cells, factored once. Columns of
 // the cavity are contiguous so the triangular factor needs only ny+1 bands.
-const band = ny + 1;
-function pressureFactor(outletCells: Set<number>): Float64Array {
+function pressureFactor(
+  { nx, ny }: Grid,
+  outletCells: Set<number>,
+): Float64Array {
+  const cells = nx * ny;
+  const band = ny + 1;
   const lower = new Float64Array(cells * band);
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
@@ -130,7 +157,13 @@ function pressureFactor(outletCells: Set<number>): Float64Array {
   return lower;
 }
 
-function solvePressure(rhs: Float64Array, factor: Float64Array): void {
+function solvePressure(
+  rhs: Float64Array,
+  factor: Float64Array,
+  ny: number,
+): void {
+  const cells = rhs.length;
+  const band = ny + 1;
   for (let row = 0; row < cells; row++) {
     let sum = rhs[row];
     for (let d = 1; d <= Math.min(row, ny); d++) {
@@ -149,6 +182,7 @@ function solvePressure(rhs: Float64Array, factor: Float64Array): void {
 
 // Explicit upwind convection and centred viscous diffusion on each MAC face.
 function predict(
+  stride: number,
   field: Float64Array,
   k: number,
   u: number,
@@ -171,7 +205,12 @@ function predict(
   );
 }
 
-function interpolate(field: Float64Array, x: number, y: number): number {
+function interpolate(
+  stride: number,
+  field: Float64Array,
+  x: number,
+  y: number,
+): number {
   const i = Math.floor(x);
   const j = Math.floor(y);
   const k = j * stride + i;
@@ -185,23 +224,34 @@ function interpolate(field: Float64Array, x: number, y: number): number {
 
 export class Cavity {
   time = 0;
-  private u = new Float64Array(padded);
-  private v = new Float64Array(padded);
-  private nextU = new Float64Array(padded);
-  private nextV = new Float64Array(padded);
-  private pressure = new Float64Array(cells);
+  private readonly grid: Grid;
+  private u: Float64Array;
+  private v: Float64Array;
+  private nextU: Float64Array;
+  private nextV: Float64Array;
+  private pressure: Float64Array;
 
   readonly settings;
   private readonly inletFaces: number[];
   private readonly outletBoundary;
   private readonly factor;
   constructor({
+    width = scene.width,
+    height = scene.height,
     flux = scene.flux,
     inlet = defaultInlet,
     outlet = defaultOutlet,
-  }: { flux?: number; inlet?: Opening; outlet?: Opening } = {}) {
-    validateOpening("Inlet", inlet);
-    validateOpening("Outlet", outlet);
+  }: {
+    width?: number;
+    height?: number;
+    flux?: number;
+    inlet?: Opening;
+    outlet?: Opening;
+  } = {}) {
+    const nx = gridCells("width", width);
+    const ny = gridCells("height", height);
+    validateOpening("Inlet", inlet, width, height);
+    validateOpening("Outlet", outlet, width, height);
     if (
       inlet.wall === outlet.wall &&
       inlet.start < outlet.start + outlet.width &&
@@ -215,16 +265,27 @@ export class Cavity {
       throw Error(
         `Enter an inlet rate between ${minRate} and ${limit} m²/s for these widths.`,
       );
+    const stride = nx + 2;
+    this.grid = { nx, ny, stride };
+    const padded = stride * (ny + 2);
+    this.u = new Float64Array(padded);
+    this.v = new Float64Array(padded);
+    this.nextU = new Float64Array(padded);
+    this.nextV = new Float64Array(padded);
+    this.pressure = new Float64Array(nx * ny);
     this.settings = Object.freeze({
+      width,
+      height,
       flux,
       inlet: Object.freeze({ ...inlet }),
       outlet: Object.freeze({ ...outlet }),
     });
-    this.outletBoundary = outletBoundary(outlet);
+    this.outletBoundary = outletBoundary(this.grid, outlet);
     this.factor = pressureFactor(
+      this.grid,
       new Set(this.outletBoundary.map((entry) => entry.cell)),
     );
-    this.inletFaces = openingFaces(inlet);
+    this.inletFaces = openingFaces(this.grid, inlet);
   }
 
   get outflow(): number {
@@ -236,6 +297,7 @@ export class Cavity {
   }
 
   private setGhostFaces(): void {
+    const { nx, ny, stride } = this.grid;
     const outlet = this.settings.outlet;
     // Only tangential faces strictly inside the outlet are free slip.
     const reflection = (wall: Wall, index: number) =>
@@ -262,7 +324,7 @@ export class Cavity {
     while (remaining > 0) {
       let maxU = this.settings.flux / this.settings.inlet.width,
         maxV = 0;
-      for (let k = 0; k < padded; k++) {
+      for (let k = 0; k < this.u.length; k++) {
         maxU = Math.max(maxU, Math.abs(this.u[k]));
         maxV = Math.max(maxV, Math.abs(this.v[k]));
       }
@@ -277,6 +339,7 @@ export class Cavity {
   }
 
   private advance(dt: number) {
+    const { nx, ny, stride } = this.grid;
     const { u, v, nextU, nextV, pressure } = this;
     const { inlet, flux } = this.settings;
     const normal = vertical(inlet.wall) ? u : v;
@@ -292,14 +355,14 @@ export class Cavity {
       for (let i = 1; i < nx; i++) {
         const k = left + i;
         const cross = (v[k] + v[k + 1] + v[k - stride] + v[k - stride + 1]) / 4;
-        nextU[k] = predict(u, k, u[k], cross, dt);
+        nextU[k] = predict(stride, u, k, u[k], cross, dt);
       }
     }
     for (let j = 1; j < ny; j++) {
       for (let i = 1; i <= nx; i++) {
         const k = j * stride + i;
         const cross = (u[k] + u[k - 1] + u[k + stride] + u[k + stride - 1]) / 4;
-        nextV[k] = predict(v, k, cross, v[k], dt);
+        nextV[k] = predict(stride, v, k, cross, v[k], dt);
       }
     }
     const wall = this.settings.outlet.wall;
@@ -319,7 +382,7 @@ export class Cavity {
         );
       }
     }
-    solvePressure(pressure, this.factor);
+    solvePressure(pressure, this.factor, ny);
     for (const { face, cell } of this.outletBoundary)
       outletVelocity[face] += sign * 2 * pressure[cell];
     for (let i = 0; i < nx; i++) {
@@ -339,32 +402,34 @@ export class Cavity {
 
   /** Sample velocity in metres per second, with y increasing from the floor. */
   velocity(x: number, y: number): [number, number] {
-    if (x <= 0 || x >= scene.width || y <= 0 || y >= scene.height) {
+    const { width, height } = this.settings;
+    const { stride } = this.grid;
+    if (x <= 0 || x >= width || y <= 0 || y >= height) {
       const side =
-        x <= 0
-          ? "left"
-          : x >= scene.width
-            ? "right"
-            : y <= 0
-              ? "bottom"
-              : "top";
+        x <= 0 ? "left" : x >= width ? "right" : y <= 0 ? "bottom" : "top";
       const upright = vertical(side);
       const position = upright ? y : x;
-      if (position <= 0 || position >= (upright ? scene.height : scene.width))
+      if (position <= 0 || position >= (upright ? height : width))
         return [0, 0];
-      const face = boundaryFace(side, Math.floor(position / h));
+      const face = boundaryFace(this.grid, side, Math.floor(position / h));
       const outlet = this.settings.outlet;
       const free =
         side === outlet.wall &&
         position >= outlet.start &&
         position < outlet.start + outlet.width;
       return upright
-        ? [this.u[face], free ? interpolate(this.v, x / h + 0.5, y / h) : 0]
-        : [free ? interpolate(this.u, x / h, y / h + 0.5) : 0, this.v[face]];
+        ? [
+            this.u[face],
+            free ? interpolate(stride, this.v, x / h + 0.5, y / h) : 0,
+          ]
+        : [
+            free ? interpolate(stride, this.u, x / h, y / h + 0.5) : 0,
+            this.v[face],
+          ];
     }
     return [
-      interpolate(this.u, x / h, y / h + 0.5),
-      interpolate(this.v, x / h + 0.5, y / h),
+      interpolate(stride, this.u, x / h, y / h + 0.5),
+      interpolate(stride, this.v, x / h + 0.5, y / h),
     ];
   }
 }

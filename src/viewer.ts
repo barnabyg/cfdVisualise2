@@ -13,25 +13,40 @@ const time = element("#time");
 const run = element<HTMLButtonElement>("#run");
 const restart = element<HTMLButtonElement>("#restart");
 let model = new Cavity();
-const width = element<SVGRectElement>("#walls").width.baseVal.value;
+const walls = element<SVGRectElement>("#walls");
 const pattern = element<SVGPatternElement>("#dots");
 const spacing = pattern.width.baseVal.value;
-const scale = width / scene.width;
-const height = scene.height * scale;
-const axes = element("#axes");
-for (let x = 0; x <= scene.width; x += 0.25) {
-  axes.insertAdjacentHTML(
-    "beforeend",
-    `<text x="${x * scale}" y="${height + 22}" text-anchor="middle">${x.toFixed(2)} m</text>`,
-  );
-}
-for (let y = 0; y <= scene.height; y += 0.25) {
-  axes.insertAdjacentHTML(
-    "beforeend",
-    `<text x="-8" y="${height - y * scale + 4}" text-anchor="end">${y.toFixed(2)}</text>`,
-  );
-}
+// Keep metres and arrow lengths on one display scale across comparisons.
+const scale = 400;
 function showConditions() {
+  const { width: metresWide, height: metresHigh } = model.settings;
+  const width = metresWide * scale,
+    height = metresHigh * scale;
+  walls.setAttribute("width", String(width));
+  walls.setAttribute("height", String(height));
+  pattern.setAttribute("y", String(height % spacing));
+  const plotWidth = scene.maxDimension * scale;
+  const leftMargin = 52,
+    rightMargin = 40;
+  const originX = -leftMargin - (plotWidth - width) / 2;
+  element("#field").setAttribute(
+    "viewBox",
+    `${originX} -20 ${plotWidth + leftMargin + rightMargin} ${height + 57}`,
+  );
+  const axes = element("#axes");
+  axes.replaceChildren();
+  for (let x = 0; x <= metresWide; x += 0.25) {
+    axes.insertAdjacentHTML(
+      "beforeend",
+      `<text x="${x * scale}" y="${height + 22}" text-anchor="middle">${x.toFixed(2)} m</text>`,
+    );
+  }
+  for (let y = 0; y <= metresHigh; y += 0.25) {
+    axes.insertAdjacentHTML(
+      "beforeend",
+      `<text x="-8" y="${height - y * scale + 4}" text-anchor="end">${y.toFixed(2)}</text>`,
+    );
+  }
   element("#ports").replaceChildren();
   for (const [port, color] of [
     [model.settings.inlet, "#67d8b4"],
@@ -51,7 +66,7 @@ function showConditions() {
     );
   }
   const conditions = [
-    ["Cavity", `${scene.width} × ${scene.height} m`],
+    ["Cavity", `${metresWide} × ${metresHigh} m`],
     ["Inlet width", `${model.settings.inlet.width} m`],
     ["Outlet width", `${model.settings.outlet.width} m`],
     ["Inlet flow", `${model.settings.flux} m²/s`],
@@ -63,6 +78,18 @@ function showConditions() {
     .join("");
 }
 showConditions();
+const widthInput = element<HTMLInputElement>("#cavity-width");
+const heightInput = element<HTMLInputElement>("#cavity-height");
+function setDimensions() {
+  for (const [input, value] of [
+    [widthInput, model.settings.width],
+    [heightInput, model.settings.height],
+  ] as const) {
+    input.step = String(scene.gridSpacing);
+    input.value = String(value);
+  }
+}
+setDimensions();
 const rate = element<HTMLInputElement>("#rate");
 function openingEditor(name: string, initial: Opening) {
   const group = document.createElement("fieldset");
@@ -93,8 +120,10 @@ const inletEditor = openingEditor("Inlet", model.settings.inlet);
 const outletEditor = openingEditor("Outlet", model.settings.outlet);
 rate.value = String(model.settings.flux);
 function draw() {
+  const width = model.settings.width * scale,
+    height = model.settings.height * scale;
   const lines: string[] = [];
-  for (let y = spacing / 2; y < height; y += spacing) {
+  for (let y = height - spacing / 2; y > 0; y -= spacing) {
     for (let x = spacing / 2; x < width; x += spacing) {
       const [u, v] = model.velocity(x / scale, (height - y) / scale);
       const speed = Math.hypot(u, v);
@@ -172,6 +201,8 @@ element("#settings").addEventListener("submit", (event) => {
   try {
     reset(
       new Cavity({
+        width: widthInput.valueAsNumber,
+        height: heightInput.valueAsNumber,
         flux: rate.valueAsNumber,
         inlet: inletEditor.read(),
         outlet: outletEditor.read(),
@@ -186,6 +217,7 @@ element("#settings").addEventListener("submit", (event) => {
 });
 element("#defaults").addEventListener("click", () => {
   reset(new Cavity());
+  setDimensions();
   outletEditor.set(model.settings.outlet);
   inletEditor.set(model.settings.inlet);
   rate.value = String(model.settings.flux);
