@@ -1,5 +1,5 @@
 import { geometry as renderedGeometry } from "./geometry.ts";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 test("Run develops directional arrows from still fluid", async ({ page }) => {
   await page.goto("/");
   const field = page.getByRole("img", { name: "Cavity velocity field" });
@@ -106,8 +106,7 @@ test("higher flow at fixed width lengthens the inlet arrow on the same scale", a
 }) => {
   await page.clock.install();
   await page.goto("/");
-  await page.getByText("Flow conditions", { exact: true }).click();
-  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+  await openFlowConditionsWithStandardGrid(page);
   const lengths: number[] = [];
   for (const flux of ["0.09375", "0.1875"]) {
     await page.getByLabel("Inlet rate").fill(flux);
@@ -131,8 +130,7 @@ test("moving then narrowing the inlet strengthens the rendered downward jet", as
 }) => {
   await page.clock.install();
   await page.goto("/");
-  await page.getByText("Flow conditions", { exact: true }).click();
-  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+  await openFlowConditionsWithStandardGrid(page);
   const inlet = page.getByRole("group", { name: "Inlet", exact: true });
   await page.getByLabel("Inlet rate").fill("0.09375");
   await inlet.getByLabel("Wall").selectOption("top");
@@ -161,8 +159,7 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
 }) => {
   await page.clock.install();
   await page.goto("/");
-  await page.getByText("Flow conditions", { exact: true }).click();
-  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+  await openFlowConditionsWithStandardGrid(page);
   const click = (name: string) =>
     page.getByRole("button", { name, exact: true }).click();
   const outlet = page.getByRole("group", { name: "Outlet", exact: true });
@@ -217,6 +214,11 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
   await expect(outlet.getByLabel("Width")).toHaveValue("0.1875");
 });
 
+async function openFlowConditionsWithStandardGrid(page: Page) {
+  await page.getByText("Flow conditions", { exact: true }).click();
+  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+}
+
 function arrowAt(path: string, sampleX: number, sampleY: number) {
   const segments = Array.from(
     path.matchAll(/M([-\d.]+) ([-\d.]+)L([-\d.]+) ([-\d.]+)/g),
@@ -236,8 +238,7 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
   page,
 }) => {
   await page.goto("/");
-  await page.getByText("Flow conditions", { exact: true }).click();
-  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+  await openFlowConditionsWithStandardGrid(page);
   const group = page.getByRole("group", { name: "Cavity", exact: true });
   const w = group.getByLabel("Width"),
     h = group.getByLabel("Height");
@@ -316,8 +317,7 @@ test("compare the shallow and tall currents at the same place and time", async (
 }) => {
   await page.clock.install();
   await page.goto("/");
-  await page.getByText("Flow conditions", { exact: true }).click();
-  await page.getByLabel("Grid density").selectOption({ label: "Standard" });
+  await openFlowConditionsWithStandardGrid(page);
   const height = page
     .getByRole("group", { name: "Cavity", exact: true })
     .getByLabel("Height");
