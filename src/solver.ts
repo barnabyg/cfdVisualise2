@@ -109,6 +109,23 @@ export class Cavity {
   private nextV = new Float64Array(padded);
   private pressure = new Float64Array(cells);
 
+  constructor(readonly settings = { flux: scene.flux }) {
+    if (!(settings.flux > 0 && settings.flux <= 1.25 * scene.openingWidth))
+      throw Error(
+        "Enter a positive inlet rate up to " +
+          1.25 * scene.openingWidth +
+          " m²/s.",
+      );
+  }
+
+  get outflow(): number {
+    let total = 0;
+    for (let j = 1; j <= ny; j++)
+      if (inOpening(j, scene.outletBottom))
+        total += h * this.u[j * stride + nx];
+    return total;
+  }
+
   private setGhostFaces(): void {
     for (let i = 0; i <= nx; i++) {
       this.u[i] = -this.u[stride + i];
@@ -129,7 +146,7 @@ export class Cavity {
     const { u, v, nextU, nextV, pressure } = this;
     for (let j = 1; j <= ny; j++) {
       u[j * stride] = inOpening(j, scene.inletBottom)
-        ? scene.flux / scene.openingWidth
+        ? this.settings.flux / scene.openingWidth
         : 0;
     }
     this.setGhostFaces();

@@ -38,15 +38,21 @@ for (const [x, bottom, color] of [
     `<path d="M${x} ${y} v-${scene.openingWidth * scale}" stroke="${color}" stroke-width="6"/>`,
   );
 }
-const conditions = [
-  ["Cavity", `${scene.width} × ${scene.height} m`],
-  ["Opening width", `${scene.openingWidth} m`],
-  ["Inlet flow", `${scene.flux} m²/s`],
-  ["Viscosity", `${scene.viscosity} m²/s`],
-];
-element("#conditions").innerHTML = conditions
-  .map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`)
-  .join("");
+function showConditions() {
+  const conditions = [
+    ["Cavity", `${scene.width} × ${scene.height} m`],
+    ["Opening width", `${scene.openingWidth} m`],
+    ["Inlet flow", `${model.settings.flux} m²/s`],
+    ["Calculated outflow", '<span id="outflow"></span> m²/s'],
+    ["Viscosity", `${scene.viscosity} m²/s`],
+  ];
+  element("#conditions").innerHTML = conditions
+    .map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`)
+    .join("");
+}
+showConditions();
+const rate = element<HTMLInputElement>("#rate");
+rate.value = String(model.settings.flux);
 function draw() {
   const lines: string[] = [];
   for (let y = spacing / 2; y < height; y += spacing) {
@@ -77,6 +83,9 @@ function draw() {
     }
   }
   field.setAttribute("d", lines.join(""));
+  element("#outflow").textContent = Number(
+    model.outflow.toPrecision(5),
+  ).toString();
   time.textContent = `${model.time.toFixed(2)} s`;
 }
 let scheduled: number | undefined;
@@ -106,13 +115,33 @@ run.addEventListener("click", () => {
   status.textContent = "Running";
   scheduled = requestAnimationFrame(frame);
 });
-restart.addEventListener("click", () => {
+function reset(next: Cavity) {
   if (scheduled !== undefined) cancelAnimationFrame(scheduled);
   scheduled = undefined;
   remainder = 0;
-  model = new Cavity();
+  model = next;
+  showConditions();
   run.textContent = "Run";
   restart.disabled = true;
   status.textContent = "At rest";
   draw();
+}
+
+restart.addEventListener("click", () => reset(new Cavity(model.settings)));
+element("#settings").addEventListener("submit", (event) => {
+  event.preventDefault();
+  try {
+    reset(new Cavity({ flux: rate.valueAsNumber }));
+    element("#feedback").textContent = "";
+  } catch (error) {
+    element("#feedback").textContent = String(
+      error instanceof Error ? error.message : error,
+    );
+  }
 });
+element("#defaults").addEventListener("click", () => {
+  reset(new Cavity());
+  rate.value = String(model.settings.flux);
+  element("#feedback").textContent = "";
+});
+draw();

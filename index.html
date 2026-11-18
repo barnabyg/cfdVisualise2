@@ -81,6 +81,16 @@
           <section>
             <h2>Flow conditions</h2>
             <dl id="conditions"></dl>
+            <p>Flow rates in m²/s per unit depth.</p>
+            <form id="settings" novalidate>
+              <label
+                >Inlet rate
+                <input id="rate" type="number" step="any" required></label
+              >
+              <p id="feedback" role="alert"></p>
+              <button type="submit">Apply</button>
+              <button id="defaults" type="button">Restore defaults</button>
+            </form>
           </section>
         </aside>
       </div>
