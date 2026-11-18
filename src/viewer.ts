@@ -29,16 +29,39 @@ const restart = element<HTMLButtonElement>("#restart");
 let model = new Cavity();
 const walls = element<SVGRectElement>("#walls");
 const pattern = element<SVGPatternElement>("#dots");
-const spacing = pattern.width.baseVal.value;
+const density = element<HTMLSelectElement>("#density");
+const defaultDensity = density.value;
 // Keep metres and arrow lengths on one display scale across comparisons.
 const scale = 400;
+function rebuildGrid() {
+  const width = model.settings.width * scale,
+    height = model.settings.height * scale;
+  const spacing = Number(density.value);
+  pattern.setAttribute("width", String(spacing));
+  pattern.setAttribute("height", String(spacing));
+  pattern.setAttribute("y", String(height % spacing));
+  const dot = element("circle", pattern);
+  dot.setAttribute("cx", String(spacing / 2));
+  dot.setAttribute("cy", String(spacing / 2));
+  arrows.length = 0;
+  field.replaceChildren();
+  for (let y = height - spacing / 2; y > 0; y -= spacing) {
+    for (let x = spacing / 2; x < width; x += spacing) {
+      const arrow = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      field.append(arrow);
+      arrows.push(arrow);
+    }
+  }
+}
 function showConditions() {
   const { width: metresWide, height: metresHigh } = model.settings;
   const width = metresWide * scale,
     height = metresHigh * scale;
   walls.setAttribute("width", String(width));
   walls.setAttribute("height", String(height));
-  pattern.setAttribute("y", String(height % spacing));
   const plotWidth = scene.maxDimension * scale;
   const leftMargin = 52,
     rightMargin = 40;
@@ -59,18 +82,7 @@ function showConditions() {
     "d",
     perimeter.length ? `${perimeter.join("").replace(/^L/, "M")}Z` : "",
   );
-  arrows.length = 0;
-  field.replaceChildren();
-  for (let y = height - spacing / 2; y > 0; y -= spacing) {
-    for (let x = spacing / 2; x < width; x += spacing) {
-      const arrow = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "path",
-      );
-      field.append(arrow);
-      arrows.push(arrow);
-    }
-  }
+  rebuildGrid();
   pressureRange = (model.settings.flux / model.settings.outlet.width) ** 2;
   element("#pressure-scale").innerHTML = pressureStops
     .map((stop, index) => {
@@ -174,6 +186,7 @@ function showObstacleEditor() {
 }
 shape.addEventListener("change", showObstacleEditor);
 function draw() {
+  const spacing = Number(density.value);
   const width = model.settings.width * scale,
     height = model.settings.height * scale;
   let index = 0;
@@ -224,6 +237,10 @@ function draw() {
   time.textContent = `${model.time.toFixed(2)} s`;
 }
 let scheduled: number | undefined;
+density.addEventListener("change", () => {
+  rebuildGrid();
+  draw();
+});
 let previous = 0;
 let remainder = 0;
 function frame(now: number) {
@@ -292,6 +309,7 @@ element("#settings").addEventListener("submit", (event) => {
   }
 });
 element("#defaults").addEventListener("click", () => {
+  density.value = defaultDensity;
   reset(new Cavity());
   shape.value = "none";
   for (const input of [centreX, centreY, size])
