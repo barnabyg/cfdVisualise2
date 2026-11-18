@@ -23,7 +23,7 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
   }
 }
 
-for (const flux of [scene.flux, scene.flux / 2])
+for (const flux of [scene.flux, scene.flux / 2, 2 ** -1022])
   test(`boundary flux at rate ${flux}`, () => {
     const cavity = new Cavity({ flux });
     // Midpoint quadrature over the entire walls, including their solid portions.

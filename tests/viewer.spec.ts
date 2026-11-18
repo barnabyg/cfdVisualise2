@@ -21,10 +21,12 @@ test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await click("Pause");
   const field = page.locator(".velocity");
   const paused = await field.getAttribute("d");
-  await rate.fill("-1");
-  await click("Apply");
-  await expect(page.getByRole("alert")).toContainText("positive");
-  await expect(field).toHaveAttribute("d", paused ?? "");
+  for (const unsupported of ["-1", "1e-322", "100"]) {
+    await rate.fill(unsupported);
+    await click("Apply");
+    await expect(page.getByRole("alert")).toContainText("rate");
+    await expect(field).toHaveAttribute("d", paused ?? "");
+  }
   await click("Restart");
   await expect(page.locator("#outflow")).toHaveText("0");
   await click("Run");

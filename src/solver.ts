@@ -209,11 +209,11 @@ export class Cavity {
     )
       throw Error("Move or resize an opening to avoid overlapping the other.");
     const limit = 2.5 * Math.min(inlet.width, outlet.width);
-    if (!(flux > 0 && flux <= limit))
+    // Subnormal rates can lose the specified flux in pressure projection.
+    const minRate = 2 ** -1022;
+    if (!(flux >= minRate && flux <= limit))
       throw Error(
-        "Enter a positive inlet rate up to " +
-          limit +
-          " m²/s for these widths.",
+        `Enter an inlet rate between ${minRate} and ${limit} m²/s for these widths.`,
       );
     this.settings = Object.freeze({
       flux,

@@ -10,7 +10,7 @@ Open http://127.0.0.1:5173/ and press **Run**. The cavity starts with still flui
 
 Enter **0.09375** for Inlet rate and press **Apply**, then **Run**. The jet enters at half the default speed and calculated outflow rises from zero to 0.09375 m²/s. Restart replays the applied rate. Restore defaults returns to the original scene.
 
-To compare inlets, keep the rate at **0.09375**, choose **Top**, position **0.25 m**, and width **0.1875 m**. Apply and run. The green jet points down. Repeat with width **0.09375 m**. The mean entry speed doubles from 0.5 to 1 m/s. Positions and widths must be multiples of 0.03125 m. The supported rate is positive and at most 2.5 m/s times the smaller opening width.
+To compare inlets, keep the rate at **0.09375**, choose **Top**, position **0.25 m**, and width **0.1875 m**. Apply and run. The green jet points down. Repeat with width **0.09375 m**. The mean entry speed doubles from 0.5 to 1 m/s. Positions and widths must be multiples of 0.03125 m. The minimum supported rate is the smallest normal double (about 2.23 × 10⁻³⁰⁸ m²/s), to preserve precision in the flux calculation. The maximum is 2.5 m/s times the smaller opening width.
 
 For the Phase 2 outlet comparison, press **Restore defaults**. Set Outlet to **Top**, position **0.5 m**, width **0.1875 m**. Apply, run and pause near 1 s. Trace the arrows up to the orange opening. The former exit on the right is solid. Change only the outlet width to **0.09375 m**, apply and run again. The exit arrows lengthen on the same scale. Mean exit speed doubles from 1 to 2 m/s while calculated outflow remains **0.1875 m²/s**.
 
