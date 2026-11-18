@@ -207,7 +207,6 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
   for (const [wall, pos, message] of [
     ["top", "1.5", "fit"],
     ["left", "0.125", "overlap"],
-    ["top", "0.123", "multiples"],
   ]) {
     await outlet.getByLabel("Wall").selectOption(wall);
     await outlet.getByLabel("Position").fill(pos);
@@ -224,6 +223,99 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
   await expect(outletMarker).toHaveAttribute("d", defaultOutlet ?? "");
   await expect(outlet.getByLabel("Wall")).toHaveValue("right");
   await expect(outlet.getByLabel("Width")).toHaveValue("0.1875");
+});
+
+test("preview snapped moves and endpoint resizes for both openings before Apply", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  await selectStandardGrid(page);
+  const click = (name: string) =>
+    page.getByRole("button", { name, exact: true }).click();
+  await click("Run");
+  await page.clock.runFor(400);
+  await click("Pause");
+  const time = page.locator("#time");
+  const arrows = page.locator(".velocity");
+  const pausedTime = (await time.textContent()) ?? "";
+  const pausedGeometry = (await renderedGeometry(arrows)) ?? "";
+  expect(pausedGeometry).toMatch(/L/);
+
+  const inlet = page.getByRole("group", { name: "Inlet", exact: true });
+  const outlet = page.getByRole("group", { name: "Outlet", exact: true });
+  const inletPreview = page.locator("#edit-inlet");
+  const outletPreview = page.locator("#edit-outlet");
+  const applied = page.locator("#ports path");
+  async function drag(grip: string, cells: number, upright: boolean) {
+    const opening = upright ? inletPreview : outletPreview;
+    const target = opening.locator(`[data-grip="${grip}"]`);
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
+    if (!box) throw Error("Missing opening drag target");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const pixelsPerCell = await target.evaluate((element: SVGRectElement) => {
+      const matrix = element.getScreenCTM();
+      if (!matrix) throw Error("Missing opening transform");
+      return Math.hypot(matrix.a, matrix.b) * 12.5;
+    });
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(
+      x + (upright ? 0 : cells * pixelsPerCell),
+      y - (upright ? cells * pixelsPerCell : 0),
+      { steps: 3 },
+    );
+    await page.mouse.up();
+  }
+  await drag("move", 2.25, true);
+  await expect(inlet.getByLabel("Position")).toHaveValue("0.125");
+  await expect(inlet.getByLabel("Width")).toHaveValue("0.1875");
+  await drag("start", 1, true);
+  await expect(inlet.getByLabel("Position")).toHaveValue("0.15625");
+  await expect(inlet.getByLabel("Width")).toHaveValue("0.15625");
+  await drag("end", 2, true);
+  await expect(inlet.getByLabel("Position")).toHaveValue("0.15625");
+  await expect(inlet.getByLabel("Width")).toHaveValue("0.21875");
+  await expect(inletPreview.locator("line")).toHaveCSS("display", "inline");
+  await expect(inletPreview.locator("line")).toHaveAttribute("x2", "87.5");
+
+  await outlet.getByLabel("Wall").selectOption("top");
+  await outlet.getByLabel("Position").fill("0.51");
+  await expect(outletPreview).toHaveAttribute(
+    "transform",
+    "translate(200 0) rotate(0)",
+  );
+  await outlet.getByLabel("Position").press("Tab");
+  await expect(outlet.getByLabel("Position")).toHaveValue("0.5");
+  await drag("move", 4, false);
+  await expect(outlet.getByLabel("Position")).toHaveValue("0.625");
+  await expect(outlet.getByLabel("Width")).toHaveValue("0.1875");
+  await drag("start", 1, false);
+  await expect(outlet.getByLabel("Position")).toHaveValue("0.65625");
+  await expect(outlet.getByLabel("Width")).toHaveValue("0.15625");
+  await drag("end", -30, false);
+  await expect(outlet.getByLabel("Position")).toHaveValue("0.65625");
+  await expect(outlet.getByLabel("Width")).toHaveValue("0.03125");
+  await outlet.getByLabel("Width").fill("0.1");
+  await expect(outletPreview.locator("line")).toHaveAttribute("x2", "37.5");
+  await expect(applied.first()).toHaveAttribute("d", "M0 375 v-75");
+  await expect(applied.last()).toHaveAttribute("d", "M600 100 v-75");
+  await expect(time).toHaveText(pausedTime);
+  expect(await renderedGeometry(arrows)).toBe(pausedGeometry);
+
+  await click("Apply");
+  await expect(page.getByRole("alert")).toBeEmpty();
+  await expect(outlet.getByLabel("Width")).toHaveValue("0.09375");
+  await expect(time).toHaveText("0.00 s");
+  await expect(applied.first()).toHaveAttribute("d", "M0 337.5 v-87.5");
+  await expect(applied.last()).toHaveAttribute("d", "M262.5 0 h37.5");
+  await expect(inletPreview.locator("line")).toBeHidden();
+  await expect(outletPreview.locator("line")).toBeHidden();
+  await click("Run");
+  await page.clock.runFor(400);
+  await expect(page.locator("#outflow")).toHaveText("0.1875");
 });
 
 async function selectStandardGrid(page: Page) {

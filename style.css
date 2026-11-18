@@ -92,6 +92,50 @@ h2 {
   max-width: max(800px, calc((100dvh - 300px) * 1.95));
   margin: 0 auto;
 }
+#ports .port-pending {
+  opacity: 0.4;
+}
+.port-preview,
+.port-handle {
+  pointer-events: none;
+}
+.port-preview {
+  display: none;
+  stroke: currentColor;
+  stroke-width: 6;
+  stroke-dasharray: 8 3;
+}
+.port-draft .port-preview {
+  display: inline;
+}
+.port-handle {
+  fill: #182e36;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.port-move,
+.port-resize {
+  y: -12px;
+  height: 24px;
+  fill: transparent;
+  touch-action: none;
+}
+.port-move {
+  cursor: grab;
+}
+.port-move:active {
+  cursor: grabbing;
+}
+.port-resize {
+  cursor: ew-resize;
+}
+.port-vertical .port-resize {
+  cursor: ns-resize;
+}
+#port-help {
+  flex-basis: 100%;
+  margin: 0;
+}
 #axes text {
   font:
     11px Consolas,

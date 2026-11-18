@@ -29,6 +29,7 @@
             viewBox="-52 -20 692 457"
             role="img"
             aria-label="Cavity velocity field"
+            aria-describedby="port-help"
           >
             <defs>
               <pattern
@@ -66,6 +67,7 @@
               stroke-width="1.5"
             />
             <g id="ports"></g>
+            <g id="port-editors" aria-hidden="true"></g>
           </svg>
           <div class="legend">
             <div class="pressure-key">
@@ -76,6 +78,10 @@
             </div>
             <span class="in">Inlet</span><span class="out">Outlet</span
             ><span class="wall">Solid wall</span>
+            <p id="port-help">
+              Drag an opening to move it, or drag either handle to resize it.
+              Press Apply to use the preview in the simulation.
+            </p>
           </div>
         </section>
         <aside>
