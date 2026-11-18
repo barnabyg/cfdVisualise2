@@ -365,19 +365,35 @@ test("large desktop keeps the enlarged default cavity and pressure key in view",
   const walls = await page.locator("#walls").boundingBox();
   expect(walls?.width).toBeGreaterThan(1200);
   await expect(page.locator("#pressure-scale")).toBeInViewport({ ratio: 1 });
+});
+
+test("pressure colours distinguish the default flow and the key follows playback", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  const key = page.locator("#pressure-scale");
   await page.getByRole("button", { name: "Run", exact: true }).click();
-  await expect
-    .poll(() =>
-      page
-        .locator(".velocity path")
-        .evaluateAll(
-          (paths) =>
-            new Set(
-              paths
-                .filter((path) => path.getAttribute("d"))
-                .map((path) => path.getAttribute("stroke")),
-            ).size,
-        ),
-    )
-    .toBeGreaterThan(1);
+  await page.clock.runFor(1000);
+  await page.getByRole("button", { name: "Pause" }).click();
+  const largestColourShare = await page
+    .locator('.velocity path[d]:not([d=""])')
+    .evaluateAll((paths) => {
+      const counts = new Map<string | null, number>();
+      for (const path of paths) {
+        const colour = path.getAttribute("stroke");
+        counts.set(colour, (counts.get(colour) ?? 0) + 1);
+      }
+      return paths.length ? Math.max(...counts.values()) / paths.length : 1;
+    });
+  expect(largestColourShare).toBeLessThan(0.5);
+  const pausedKey = await key.textContent();
+  await page.getByLabel("Grid density").selectOption({ label: "Sparse" });
+  expect(await key.textContent()).toBe(pausedKey);
+  await page.getByRole("button", { name: "Resume" }).click();
+  await page.clock.runFor(1000);
+  await page.getByRole("button", { name: "Pause" }).click();
+  expect(await key.textContent()).not.toBe(pausedKey);
+  await page.getByRole("button", { name: "Restart" }).click();
+  await expect(key).toHaveText("0");
 });
