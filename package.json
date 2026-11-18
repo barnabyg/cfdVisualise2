@@ -1,0 +1,26 @@
+{
+  "name": "cavity-flow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "launch": "npm ci && npm run dev",
+    "format": "biome format .",
+    "lint": "biome lint --error-on-warnings .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/flux.test.ts && playwright test",
+    "build": "node scripts/build.mjs",
+    "verify": "npm run format && npm run lint && npm run typecheck && npm test && npm audit && node scripts/check-package.mjs && npm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@playwright/test": "1.65.1",
+    "@types/node": "24.10.1",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}
