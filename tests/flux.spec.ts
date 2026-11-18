@@ -23,20 +23,30 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
   }
 }
 
-for (const flux of [scene.flux, scene.flux / 2, 2 ** -1022])
-  test(`boundary flux at rate ${flux}`, () => {
-    const cavity = new Cavity({ flux });
+for (const [flux, width, height] of [
+  [scene.flux, 1.5, 1],
+  [scene.flux / 2, 1.5, 1],
+  [2 ** -1022, 1.5, 1],
+  [scene.flux, 1.75, 1.25],
+])
+  test(`boundary flux at rate ${flux} in ${width} x ${height} m`, () => {
+    const cavity = new Cavity({ flux, width, height });
     // Midpoint quadrature over the entire walls, including their solid portions.
-    const samples = 960;
-    const dy = scene.height / samples;
+    const samples = height * 960;
+    const dy = height / samples;
     for (const instant of [0.1, 1, 6]) {
       while (cavity.time < instant) cavity.step();
+      if (height > scene.height)
+        assert.ok(
+          Math.hypot(...cavity.velocity(0.75, 1.125)) > 0,
+          "flow in the added space",
+        );
       let inlet = 0;
       let outlet = 0;
       for (let row = 0; row < samples; row++) {
         const y = (row + 0.5) * dy;
         const left = cavity.velocity(0, y)[0];
-        const right = cavity.velocity(scene.width, y)[0];
+        const right = cavity.velocity(width, y)[0];
         if (y > scene.inletBottom && y < scene.inletBottom + scene.openingWidth)
           inlet -= left * dy;
         else assert.equal(left, 0, "impermeable left wall");
