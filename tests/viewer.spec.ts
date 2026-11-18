@@ -36,6 +36,29 @@ test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await expect(field).toHaveAttribute("d", "");
 });
 
+test("higher flow at fixed width lengthens the inlet arrow on the same scale", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  const lengths: number[] = [];
+  for (const flux of ["0.09375", "0.1875"]) {
+    await page.getByLabel("Inlet rate").fill(flux);
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await page.clock.runFor(500);
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    const shaft = arrowAt(
+      (await page.locator(".velocity").getAttribute("d")) ?? "",
+      12.5,
+      337.5,
+    );
+    lengths.push(shaft[2] - shaft[0]);
+  }
+  expect(lengths[0]).toBeGreaterThan(0);
+  expect(lengths[1]).toBeGreaterThan(lengths[0]);
+});
+
 test("moving then narrowing the inlet strengthens the rendered downward jet", async ({
   page,
 }) => {
