@@ -10,6 +10,8 @@ Open http://127.0.0.1:5173/ and press **Run**. The cavity starts with still flui
 
 ## Numerical model
 
+To check playback, pause near 2 s while the return current is developing. Watch the time and arrows hold, then resume and follow the same current. Restart while running or paused. The time should return to zero with a still field. Press Run again and look for the same turn above the inlet.
+
 The 1.5 × 1 m cavity admits 0.1875 m²/s per unit depth through a 0.1875 m opening starting 0.0625 m above the floor. The inlet speed is 1 m/s. The equally wide outlet starts 0.75 m above the floor. Kinematic viscosity is 0.002 m²/s.
 
 Around **1–2 simulated seconds**, watch for arrows turning left above the jet. By **3–5 s**, trace the jet along the floor, up the right side, back across the upper cavity and down the left. Around **20 s**, the pattern looks steady while the jet keeps flowing. The fixed arrow-length scale uses an inverse hyperbolic sine to make slow return currents legible alongside the faster jet.

@@ -8,7 +8,8 @@ const field = element<SVGPathElement>(".velocity");
 const status = element("#status");
 const time = element("#time");
 const run = element<HTMLButtonElement>("#run");
-const model = new Cavity();
+const restart = element<HTMLButtonElement>("#restart");
+let model = new Cavity();
 const scale = 600 / scene.width;
 const height = scene.height * scale;
 const axes = element("#axes");
@@ -75,6 +76,7 @@ function draw() {
   field.setAttribute("d", lines.join(""));
   time.textContent = `${model.time.toFixed(2)} s`;
 }
+let scheduled: number | undefined;
 let previous = 0;
 let remainder = 0;
 function frame(now: number) {
@@ -85,10 +87,29 @@ function frame(now: number) {
     remainder -= scene.dt;
   }
   draw();
-  requestAnimationFrame(frame);
+  scheduled = requestAnimationFrame(frame);
 }
 run.addEventListener("click", () => {
-  run.disabled = true;
+  if (scheduled !== undefined) {
+    cancelAnimationFrame(scheduled);
+    scheduled = undefined;
+    run.textContent = "Resume";
+    status.textContent = "Paused";
+    return;
+  }
+  previous = performance.now();
+  run.textContent = "Pause";
+  restart.disabled = false;
   status.textContent = "Running";
-  requestAnimationFrame(frame);
+  scheduled = requestAnimationFrame(frame);
+});
+restart.addEventListener("click", () => {
+  if (scheduled !== undefined) cancelAnimationFrame(scheduled);
+  scheduled = undefined;
+  remainder = 0;
+  model = new Cavity();
+  run.textContent = "Run";
+  restart.disabled = true;
+  status.textContent = "At rest";
+  draw();
 });

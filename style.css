@@ -188,3 +188,7 @@ button:focus-visible {
     gap: 16px;
   }
 }
+#restart {
+  background: transparent;
+  color: #245747;
+}
