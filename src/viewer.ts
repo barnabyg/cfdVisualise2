@@ -249,6 +249,14 @@ function frame(now: number) {
   while (remainder >= scene.dt) {
     model.step();
     remainder -= scene.dt;
+    if (model.converged) {
+      scheduled = undefined;
+      run.textContent = "Run";
+      run.disabled = true;
+      status.textContent = "Converged";
+      draw();
+      return;
+    }
   }
   draw();
   scheduled = requestAnimationFrame(frame);
@@ -274,6 +282,7 @@ function reset(next: Cavity) {
   model = next;
   showConditions();
   run.textContent = "Run";
+  run.disabled = false;
   restart.disabled = true;
   status.textContent = "At rest";
   draw();

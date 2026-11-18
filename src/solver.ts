@@ -13,6 +13,8 @@ export const scene = Object.freeze({
   viscosity: 0.002,
   dt: 0.0125,
 });
+const steadyTolerance = 1e-5;
+const steadySteps = Math.ceil(1 / scene.dt);
 
 export type Wall = "left" | "right" | "bottom" | "top";
 export interface Opening {
@@ -294,6 +296,7 @@ function interpolate(
 export class Cavity {
   time = 0;
   private substeps = 1;
+  private stepsWithinTolerance = 0;
   private readonly grid: Grid;
   private u: Float64Array;
   private v: Float64Array;
@@ -368,6 +371,11 @@ export class Cavity {
     this.inletFaces = openingFaces(this.grid, inlet);
   }
 
+  /** Whether the velocity field has stayed within the steady-flow tolerance. */
+  get converged(): boolean {
+    return this.stepsWithinTolerance >= steadySteps;
+  }
+
   get outflow(): number {
     let total = 0;
     const { wall } = this.settings.outlet;
@@ -401,8 +409,10 @@ export class Cavity {
   step(): void {
     let remaining = scene.dt;
     let stepsLeft = this.substeps;
+    let withinTolerance = true;
+    const inletSpeed = this.settings.flux / this.settings.inlet.width;
     while (stepsLeft > 0) {
-      let maxU = this.settings.flux / this.settings.inlet.width,
+      let maxU = inletSpeed,
         maxV = 0;
       for (let k = 0; k < this.u.length; k++) {
         maxU = Math.max(maxU, Math.abs(this.u[k]));
@@ -416,10 +426,27 @@ export class Cavity {
       // Share the remaining time evenly to avoid a tiny final correction.
       const dt = remaining / stepsLeft;
       this.advance(dt);
+      const tolerance = inletSpeed * (steadyTolerance * (dt / scene.dt));
+      withinTolerance &&= this.velocityChangeWithin(tolerance);
       remaining -= dt;
       stepsLeft--;
     }
+    this.stepsWithinTolerance = withinTolerance
+      ? this.stepsWithinTolerance + 1
+      : 0;
     this.time += scene.dt;
+  }
+
+  private velocityChangeWithin(tolerance: number): boolean {
+    // After advancing, the scratch arrays hold the previous face velocities.
+    for (let k = 0; k < this.u.length; k++) {
+      const change = Math.max(
+        Math.abs(this.u[k] - this.nextU[k]),
+        Math.abs(this.v[k] - this.nextV[k]),
+      );
+      if (!(change <= tolerance)) return false;
+    }
+    return true;
   }
 
   private advance(dt: number) {
