@@ -7,7 +7,7 @@ const files = new Map([
   ["/style.css", ["style.css", "text/css"]],
 ]);
 const port = Number(process.argv[2] === "--port" ? process.argv[3] : 41673);
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const file = files.get(req.url);
   if (!file) {
     res.writeHead(404).end();
@@ -21,6 +21,15 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(500).end();
   }
-}).listen(port, "127.0.0.1", () =>
-  console.log(`Open http://127.0.0.1:${port}/`),
-);
+});
+if (process.argv.includes("--fallback-port")) {
+  server.once("error", (error) => {
+    if (error.code !== "EADDRINUSE") throw error;
+    server.listen(0, "127.0.0.1");
+  });
+}
+server.on("listening", () => {
+  console.log(`Open http://127.0.0.1:${server.address().port}/`);
+  console.log("Press Ctrl+C in this terminal to stop the server.");
+});
+server.listen(port, "127.0.0.1");
