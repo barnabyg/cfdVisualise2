@@ -1,6 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "@playwright/test";
-import { Cavity, scene } from "../src/solver.ts";
+import { Cavity, scene, type Wall } from "../src/solver.ts";
+
+function sampleWall(cavity: Cavity, wall: Wall, position: number) {
+  switch (wall) {
+    case "left": {
+      const [u, v] = cavity.velocity(0, position);
+      return { outward: -u, tangent: v };
+    }
+    case "right": {
+      const [u, v] = cavity.velocity(scene.width, position);
+      return { outward: u, tangent: v };
+    }
+    case "bottom": {
+      const [u, v] = cavity.velocity(position, 0);
+      return { outward: -v, tangent: u };
+    }
+    case "top": {
+      const [u, v] = cavity.velocity(position, scene.height);
+      return { outward: v, tangent: u };
+    }
+  }
+}
 
 for (const flux of [scene.flux, scene.flux / 2])
   test(`boundary flux at rate ${flux}`, () => {
@@ -43,21 +64,10 @@ for (const wall of ["left", "right", "bottom", "top"] as const) {
       const length = vertical ? scene.height : scene.width;
       for (let i = 0; i < 960; i++) {
         const position = ((i + 0.5) * length) / 960;
-        const [u, v] = vertical
-          ? cavity.velocity(wall === "left" ? 0 : scene.width, position)
-          : cavity.velocity(position, wall === "bottom" ? 0 : scene.height);
         if (position >= 0.25 && position < 0.25 + width) {
-          assert.equal(vertical ? v : u, 0);
-          integrated +=
-            ((wall === "left"
-              ? u
-              : wall === "right"
-                ? -u
-                : wall === "bottom"
-                  ? v
-                  : -v) *
-              length) /
-            960;
+          const { outward, tangent } = sampleWall(cavity, wall, position);
+          assert.equal(tangent, 0);
+          integrated -= (outward * length) / 960;
         }
       }
       assert.ok(Math.abs(integrated - flux) / flux < 0.001);
@@ -80,17 +90,7 @@ for (const wall of ["top", "bottom", "left", "right"] as const) {
           const ds = (upright ? scene.height : scene.width) / 960;
           for (let i = 0; i < 960; i++) {
             const pos = (i + 0.5) * ds;
-            const [u, v] = upright
-              ? cavity.velocity(side === "left" ? 0 : scene.width, pos)
-              : cavity.velocity(pos, side === "bottom" ? 0 : scene.height);
-            const outward =
-              side === "left"
-                ? -u
-                : side === "right"
-                  ? u
-                  : side === "bottom"
-                    ? -v
-                    : v;
+            const { outward } = sampleWall(cavity, side, pos);
             if (side === wall && pos >= start && pos < start + width)
               outflow += outward * ds;
             else if (side === "left" && pos >= 0.0625 && pos < 0.25)
