@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/serve.mjs",
-    "launch": "npm install --no-audit --no-fund && npm run dev",
+    "launch": "npm install --no-audit --no-fund && node scripts/serve.mjs --fallback-port",
     "format": "biome format .",
     "lint": "biome lint --error-on-warnings .",
     "typecheck": "tsc --noEmit",
