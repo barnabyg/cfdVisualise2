@@ -48,7 +48,7 @@ function gridCells(name: string, length: number) {
 }
 
 export interface Obstacle {
-  readonly shape: "square";
+  readonly shape: "square" | "circle";
   readonly x: number;
   readonly y: number;
   readonly size: number;
@@ -85,8 +85,14 @@ function resolveObstacle(
         "Leave at least one fluid cell between the obstacle and every cavity wall.",
       );
     for (let row = bottom; row < bottom + cells; row++) {
-      const start = left,
-        end = left + cells;
+      // Use cell centres inside the disc; symmetry gives the right edge.
+      let start = left;
+      if (obstacle.shape === "circle") {
+        const dy = (row + 0.5) * h - y;
+        while (((start + 0.5) * h - x) ** 2 + dy ** 2 > (size / 2) ** 2)
+          start++;
+      }
+      const end = left + cells - (start - left);
       spans.push({ row, start, end });
       solid.fill(
         1,

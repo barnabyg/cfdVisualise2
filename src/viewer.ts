@@ -168,6 +168,8 @@ const centreX = element<HTMLInputElement>("#centre-x");
 const centreY = element<HTMLInputElement>("#centre-y");
 const size = element<HTMLInputElement>("#size");
 function showObstacleEditor() {
+  element("#size-label").textContent =
+    shape.value === "circle" ? "Diameter (m)" : "Side length (m)";
   element<HTMLElement>("#obstacle-settings").hidden = shape.value === "none";
 }
 shape.addEventListener("change", showObstacleEditor);
@@ -273,7 +275,7 @@ element("#settings").addEventListener("submit", (event) => {
           shape.value === "none"
             ? undefined
             : {
-                shape: "square",
+                shape: shape.value === "circle" ? "circle" : "square",
                 x: centreX.valueAsNumber,
                 y: centreY.valueAsNumber,
                 size: size.valueAsNumber,
