@@ -14,6 +14,8 @@ To compare inlets, keep the rate at **0.09375**, choose **Top**, position **0.25
 
 For the Phase 2 outlet comparison, press **Restore defaults**. Set Outlet to **Top**, position **0.5 m**, width **0.1875 m**. Apply, run and pause near 1 s. Trace the arrows up to the orange opening. The former exit on the right is solid. Change only the outlet width to **0.09375 m**, apply and run again. The exit arrows lengthen on the same scale. Mean exit speed doubles from 1 to 2 m/s while calculated outflow remains **0.1875 m²/s**.
 
+Use **Grid density** under Playback to change the spacing of the dots and velocity arrows. Pause a running simulation and switch from **Sparse** to **Dense** to inspect more locations at the same simulation time. The numerical solver uses the same mesh at every display density. **Restore defaults** selects **Standard**.
+
 ## Compare shallow and tall cavities
 
 From the repository root in PowerShell 7, run the following command with Node.js 24.13 or later, npm and a browser installed.

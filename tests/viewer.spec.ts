@@ -10,6 +10,34 @@ test("Run develops directional arrows from still fluid", async ({ page }) => {
   await expect.poll(() => renderedGeometry(arrows)).toMatch(/L/);
 });
 
+test("change the display grid while inspecting a paused field", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const density = page.getByLabel("Grid density");
+  const arrows = page.locator(".velocity path");
+  await expect(arrows).toHaveCount(384);
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.locator("#outflow")).toHaveText("0.1875");
+  await page.getByRole("button", { name: "Pause" }).click();
+  const time = (await page.locator("#time").textContent()) ?? "";
+  for (const [label, count, spacing] of [
+    ["Sparse", 96, "50"],
+    ["Dense", 1536, "12.5"],
+  ] as const) {
+    await density.selectOption({ label });
+    await expect(arrows).toHaveCount(count);
+    await expect(page.locator("#dots")).toHaveAttribute("width", spacing);
+    await expect
+      .poll(() => renderedGeometry(page.locator(".velocity")))
+      .toMatch(/L/);
+    await expect(page.locator("#time")).toHaveText(time);
+    await expect(page.getByRole("status")).toHaveText("Paused");
+  }
+  await page.getByRole("button", { name: "Restore defaults" }).click();
+  await expect(arrows).toHaveCount(384);
+});
+
 test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await page.goto("/");
   const rate = page.getByLabel("Inlet rate");
