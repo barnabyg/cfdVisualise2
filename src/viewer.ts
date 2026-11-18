@@ -19,9 +19,15 @@ const colours = [
   "#f07569",
   "#e35960",
 ];
-const pressureStops = [0, 0.25, 0.5, 0.65, 0.75, 0.8, 0.85, 0.9, 1];
+const lastColour = colours.length - 1;
+const middleColour = lastColour / 2;
+const swatches = colours.map((colour) => {
+  const swatch = document.createElement("span");
+  swatch.style.borderColor = colour;
+  return swatch;
+});
+element("#pressure-scale").append(...swatches);
 const arrows: SVGPathElement[] = [];
-let pressureRange = 1;
 const status = element("#status");
 const time = element("#time");
 const run = element<HTMLButtonElement>("#run");
@@ -83,12 +89,6 @@ function showConditions() {
     perimeter.length ? `${perimeter.join("").replace(/^L/, "M")}Z` : "",
   );
   rebuildGrid();
-  pressureRange = (model.settings.flux / model.settings.outlet.width) ** 2;
-  element("#pressure-scale").innerHTML = pressureStops
-    .map((stop, index) => {
-      return `<span style="border-color:${colours[index]}">${Number((stop * pressureRange).toPrecision(3))}</span>`;
-    })
-    .join("");
   const axes = element("#axes");
   axes.replaceChildren();
   for (let x = 0; x <= metresWide; x += 0.25) {
@@ -185,7 +185,31 @@ function showObstacleEditor() {
   element<HTMLElement>("#obstacle-settings").hidden = shape.value === "none";
 }
 shape.addEventListener("change", showObstacleEditor);
+function showPressureScale() {
+  // Use the solver mesh so changing the display density keeps the same key.
+  const samples = model.fluidPressures().sort((a, b) => a - b);
+  const last = samples.length - 1;
+  let low = samples[Math.floor(0.05 * last)];
+  let high = samples[Math.floor(0.95 * last)];
+  if (low === high) {
+    low = samples[0];
+    high = samples[last];
+  }
+  const range = high - low;
+  for (const [index, swatch] of swatches.entries()) {
+    const hidden = range === 0 && index !== middleColour;
+    swatch.hidden = hidden;
+    const value = low + (index / lastColour) * range;
+    const prefix =
+      range && index === 0 ? "≤" : range && index === lastColour ? "≥" : "";
+    const label = hidden ? "" : prefix + Number(value.toPrecision(3));
+    if (swatch.textContent !== label) swatch.textContent = label;
+  }
+  return { low, range };
+}
+
 function draw() {
+  const { low, range } = showPressureScale();
   const spacing = Number(density.value);
   const width = model.settings.width * scale,
     height = model.settings.height * scale;
@@ -200,13 +224,9 @@ function draw() {
         continue;
       }
       const p = model.pressureAt(x / scale, (height - y) / scale);
-      const relative = pressureRange ? p / pressureRange : 0;
-      let level = 0;
-      while (
-        level + 1 < pressureStops.length &&
-        relative >= (pressureStops[level] + pressureStops[level + 1]) / 2
-      )
-        level++;
+      const level = range
+        ? Math.round(lastColour * Math.min(1, Math.max(0, (p - low) / range)))
+        : middleColour;
       arrow.setAttribute("stroke", colours[level]);
       // Compress the speed range so slow return flow has a readable arrowhead.
       const length = (22 * Math.asinh(8 * speed)) / Math.asinh(8);

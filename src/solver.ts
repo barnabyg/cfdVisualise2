@@ -526,6 +526,19 @@ export class Cavity {
     return this.pressure[i * ny + j] * this.pressureScale;
   }
 
+  /** Kinematic pressure in each fluid cell, in m²/s². */
+  fluidPressures(): number[] {
+    const { nx, ny, stride } = this.grid;
+    const samples: number[] = [];
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < ny; j++) {
+        if (!this.solid[(j + 1) * stride + i + 1])
+          samples.push(this.pressure[i * ny + j] * this.pressureScale);
+      }
+    }
+    return samples;
+  }
+
   /** Sample velocity in metres per second, with y increasing from the floor. */
   velocity(x: number, y: number): [number, number] {
     const { width, height } = this.settings;
