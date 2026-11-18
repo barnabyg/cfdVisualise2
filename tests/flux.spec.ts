@@ -65,3 +65,46 @@ for (const wall of ["left", "right", "bottom", "top"] as const) {
     }
   });
 }
+
+for (const wall of ["top", "bottom", "left", "right"] as const) {
+  test(`relocated ${wall} outlet discharges across its active faces only`, () => {
+    for (const width of [0.1875, 0.09375]) {
+      const start = 0.5;
+      const cavity = new Cavity({ outlet: { wall, start, width } });
+      for (const instant of [0.1, 1, 6]) {
+        while (cavity.time < instant) cavity.step();
+        let inflow = 0,
+          outflow = 0;
+        for (const side of ["left", "right", "bottom", "top"] as const) {
+          const upright = side === "left" || side === "right";
+          const ds = (upright ? scene.height : scene.width) / 960;
+          for (let i = 0; i < 960; i++) {
+            const pos = (i + 0.5) * ds;
+            const [u, v] = upright
+              ? cavity.velocity(side === "left" ? 0 : scene.width, pos)
+              : cavity.velocity(pos, side === "bottom" ? 0 : scene.height);
+            const outward =
+              side === "left"
+                ? -u
+                : side === "right"
+                  ? u
+                  : side === "bottom"
+                    ? -v
+                    : v;
+            if (side === wall && pos >= start && pos < start + width)
+              outflow += outward * ds;
+            else if (side === "left" && pos >= 0.0625 && pos < 0.25)
+              inflow += outward * ds;
+            else assert.ok(outward === 0, "impermeable remainder");
+          }
+        }
+        assert.ok(inflow < 0 && outflow > 0);
+        assert.ok(Math.abs(inflow + scene.flux) / scene.flux < 0.001);
+        assert.ok(Math.abs(outflow + inflow) / -inflow < 0.001);
+        assert.ok(
+          Math.abs(outflow / width - (width === 0.1875 ? 1 : 2)) < 0.002,
+        );
+      }
+    }
+  });
+}

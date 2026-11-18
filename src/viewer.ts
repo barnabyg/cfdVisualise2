@@ -1,11 +1,4 @@
-import {
-  Cavity,
-  defaultOutlet,
-  type Opening,
-  type Wall,
-  scene,
-  vertical,
-} from "./solver.ts";
+import { Cavity, type Opening, type Wall, scene, vertical } from "./solver.ts";
 function element<T extends Element>(
   selector: string,
   root: ParentNode = document,
@@ -42,7 +35,7 @@ function showConditions() {
   element("#ports").replaceChildren();
   for (const [port, color] of [
     [model.settings.inlet, "#67d8b4"],
-    [defaultOutlet, "#ffb26d"],
+    [model.settings.outlet, "#ffb26d"],
   ] as const) {
     const upright = vertical(port.wall);
     const x = upright ? (port.wall === "left" ? 0 : width) : port.start * scale;
@@ -60,6 +53,7 @@ function showConditions() {
   const conditions = [
     ["Cavity", `${scene.width} × ${scene.height} m`],
     ["Inlet width", `${model.settings.inlet.width} m`],
+    ["Outlet width", `${model.settings.outlet.width} m`],
     ["Inlet flow", `${model.settings.flux} m²/s`],
     ["Calculated outflow", '<span id="outflow"></span> m²/s'],
     ["Viscosity", `${scene.viscosity} m²/s`],
@@ -95,6 +89,7 @@ function openingEditor(name: string, initial: Opening) {
   };
 }
 const inletEditor = openingEditor("Inlet", model.settings.inlet);
+const outletEditor = openingEditor("Outlet", model.settings.outlet);
 rate.value = String(model.settings.flux);
 function draw() {
   const lines: string[] = [];
@@ -174,7 +169,13 @@ restart.addEventListener("click", () => reset(new Cavity(model.settings)));
 element("#settings").addEventListener("submit", (event) => {
   event.preventDefault();
   try {
-    reset(new Cavity({ flux: rate.valueAsNumber, inlet: inletEditor.read() }));
+    reset(
+      new Cavity({
+        flux: rate.valueAsNumber,
+        inlet: inletEditor.read(),
+        outlet: outletEditor.read(),
+      }),
+    );
     element("#feedback").textContent = "";
   } catch (error) {
     element("#feedback").textContent = String(
@@ -184,6 +185,7 @@ element("#settings").addEventListener("submit", (event) => {
 });
 element("#defaults").addEventListener("click", () => {
   reset(new Cavity());
+  outletEditor.set(model.settings.outlet);
   inletEditor.set(model.settings.inlet);
   rate.value = String(model.settings.flux);
   element("#feedback").textContent = "";

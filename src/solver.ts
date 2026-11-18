@@ -27,7 +27,7 @@ const defaultInlet: Opening = {
   start: scene.inletBottom,
   width: scene.openingWidth,
 };
-export const defaultOutlet: Opening = {
+const defaultOutlet: Opening = {
   wall: "right",
   start: scene.outletBottom,
   width: scene.openingWidth,
@@ -76,21 +76,37 @@ function openingFaces(opening: Opening) {
     boundaryFace(opening.wall, opening.start / h + i),
   );
 }
-function inOpening(row: number, bottom: number): boolean {
-  const y = (row - 0.5) * h;
-  return y > bottom && y < bottom + scene.openingWidth;
+function outwardSign(wall: Wall) {
+  return wall === "left" || wall === "bottom" ? -1 : 1;
+}
+
+function outletBoundary(opening: Opening) {
+  return openingFaces(opening).map((face, i) => {
+    const index = opening.start / h + i;
+    const column = vertical(opening.wall)
+      ? opening.wall === "left"
+        ? 0
+        : nx - 1
+      : index;
+    const row = vertical(opening.wall)
+      ? index
+      : opening.wall === "bottom"
+        ? 0
+        : ny - 1;
+    return { face, cell: column * ny + row };
+  });
 }
 
 // Constant negative Laplacian on pressure cells, factored once. Columns of
 // the cavity are contiguous so the triangular factor needs only ny+1 bands.
 const band = ny + 1;
-function pressureFactor(): Float64Array {
+function pressureFactor(outletCells: Set<number>): Float64Array {
   const lower = new Float64Array(cells * band);
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       const row = i * ny + j;
       const base = row * band;
-      const outlet = i === nx - 1 && inOpening(j + 1, scene.outletBottom);
+      const outlet = outletCells.has(row);
       // Dirichlet p=0 lies half a cell from the last pressure centre.
       lower[base] =
         Number(i > 0) +
@@ -113,8 +129,7 @@ function pressureFactor(): Float64Array {
   return lower;
 }
 
-const factor = pressureFactor();
-function solvePressure(rhs: Float64Array): void {
+function solvePressure(rhs: Float64Array, factor: Float64Array): void {
   for (let row = 0; row < cells; row++) {
     let sum = rhs[row];
     for (let d = 1; d <= Math.min(row, ny); d++) {
@@ -132,7 +147,13 @@ function solvePressure(rhs: Float64Array): void {
 }
 
 // Explicit upwind convection and centred viscous diffusion on each MAC face.
-function predict(field: Float64Array, k: number, u: number, v: number): number {
+function predict(
+  field: Float64Array,
+  k: number,
+  u: number,
+  v: number,
+  dt: number,
+): number {
   const centre = field[k];
   const left = field[k - 1];
   const right = field[k + 1];
@@ -143,8 +164,8 @@ function predict(field: Float64Array, k: number, u: number, v: number): number {
     v * (v >= 0 ? centre - below : above - centre);
   return (
     centre -
-    (scene.dt / h) * convection +
-    ((scene.viscosity * scene.dt) / (h * h)) *
+    (dt / h) * convection +
+    ((scene.viscosity * dt) / (h * h)) *
       (right + left + above + below - 4 * centre)
   );
 }
@@ -171,61 +192,95 @@ export class Cavity {
 
   readonly settings;
   private readonly inletFaces: number[];
+  private readonly outletBoundary;
+  private readonly factor;
   constructor({
     flux = scene.flux,
     inlet = defaultInlet,
-  }: { flux?: number; inlet?: Opening } = {}) {
+    outlet = defaultOutlet,
+  }: { flux?: number; inlet?: Opening; outlet?: Opening } = {}) {
     validateOpening("Inlet", inlet);
+    validateOpening("Outlet", outlet);
     if (
-      inlet.wall === defaultOutlet.wall &&
-      inlet.start < defaultOutlet.start + defaultOutlet.width &&
-      defaultOutlet.start < inlet.start + inlet.width
+      inlet.wall === outlet.wall &&
+      inlet.start < outlet.start + outlet.width &&
+      outlet.start < inlet.start + inlet.width
     )
-      throw Error(
-        "Move the inlet or reduce its width to avoid overlapping the outlet.",
-      );
-    const limit = 1.25 * Math.min(inlet.width, defaultOutlet.width);
+      throw Error("Move or resize an opening to avoid overlapping the other.");
+    const limit = 2.5 * Math.min(inlet.width, outlet.width);
     if (!(flux > 0 && flux <= limit))
       throw Error(
         "Enter a positive inlet rate up to " +
           limit +
           " m²/s for these widths.",
       );
-    this.settings = { flux, inlet: Object.freeze({ ...inlet }) };
+    this.settings = Object.freeze({
+      flux,
+      inlet: Object.freeze({ ...inlet }),
+      outlet: Object.freeze({ ...outlet }),
+    });
+    this.outletBoundary = outletBoundary(outlet);
+    this.factor = pressureFactor(
+      new Set(this.outletBoundary.map((entry) => entry.cell)),
+    );
     this.inletFaces = openingFaces(inlet);
   }
 
   get outflow(): number {
     let total = 0;
-    for (let j = 1; j <= ny; j++)
-      if (inOpening(j, scene.outletBottom))
-        total += h * this.u[j * stride + nx];
-    return total;
+    const { wall } = this.settings.outlet;
+    const normal = vertical(wall) ? this.u : this.v;
+    for (const { face } of this.outletBoundary) total += h * normal[face];
+    return total * outwardSign(wall);
   }
 
   private setGhostFaces(): void {
+    const outlet = this.settings.outlet;
+    // Only tangential faces strictly inside the outlet are free slip.
+    const reflection = (wall: Wall, index: number) =>
+      wall === outlet.wall &&
+      index * h > outlet.start &&
+      index * h < outlet.start + outlet.width
+        ? 1
+        : -1;
     for (let i = 0; i <= nx; i++) {
-      this.u[i] = -this.u[stride + i];
-      this.u[(ny + 1) * stride + i] = -this.u[ny * stride + i];
+      this.u[i] = reflection("bottom", i) * this.u[stride + i];
+      this.u[(ny + 1) * stride + i] =
+        reflection("top", i) * this.u[ny * stride + i];
     }
     for (let j = 0; j <= ny; j++) {
       const left = j * stride;
-      this.v[left] = -this.v[left + 1];
-      // Free tangential derivative across the opening, no slip elsewhere.
-      const open =
-        inOpening(j, scene.outletBottom) &&
-        inOpening(j + 1, scene.outletBottom);
-      this.v[left + nx + 1] = (open ? 1 : -1) * this.v[left + nx];
+      this.v[left] = reflection("left", j) * this.v[left + 1];
+      this.v[left + nx + 1] = reflection("right", j) * this.v[left + nx];
     }
   }
 
   step(): void {
+    // Bound the explicit advection and diffusion step as the field develops.
+    let remaining = scene.dt;
+    while (remaining > 0) {
+      let maxU = this.settings.flux / this.settings.inlet.width,
+        maxV = 0;
+      for (let k = 0; k < padded; k++) {
+        maxU = Math.max(maxU, Math.abs(this.u[k]));
+        maxV = Math.max(maxV, Math.abs(this.v[k]));
+      }
+      const dt = Math.min(
+        remaining,
+        0.9 / ((maxU + maxV) / h + (4 * scene.viscosity) / (h * h)),
+      );
+      this.advance(dt);
+      remaining -= dt;
+    }
+    this.time += scene.dt;
+  }
+
+  private advance(dt: number) {
     const { u, v, nextU, nextV, pressure } = this;
     const { inlet, flux } = this.settings;
     const normal = vertical(inlet.wall) ? u : v;
     const predicted = vertical(inlet.wall) ? nextU : nextV;
-    const inwardSign =
-      inlet.wall === "left" || inlet.wall === "bottom" ? 1 : -1;
+    const inwardSign = -outwardSign(inlet.wall);
     for (const face of this.inletFaces) {
       normal[face] = (inwardSign * flux) / inlet.width;
       predicted[face] = normal[face];
@@ -233,25 +288,25 @@ export class Cavity {
     this.setGhostFaces();
     for (let j = 1; j <= ny; j++) {
       const left = j * stride;
-      nextU[left] = u[left];
       for (let i = 1; i < nx; i++) {
         const k = left + i;
         const cross = (v[k] + v[k + 1] + v[k - stride] + v[k - stride + 1]) / 4;
-        nextU[k] = predict(u, k, u[k], cross);
+        nextU[k] = predict(u, k, u[k], cross, dt);
       }
-      // Extrapolate the predictor through the open face. Projection below
-      // determines its final velocity from the interior pressure gradient.
-      nextU[left + nx] = inOpening(j, scene.outletBottom)
-        ? nextU[left + nx - 1]
-        : u[left + nx];
     }
     for (let j = 1; j < ny; j++) {
       for (let i = 1; i <= nx; i++) {
         const k = j * stride + i;
         const cross = (u[k] + u[k - 1] + u[k + stride] + u[k + stride - 1]) / 4;
-        nextV[k] = predict(v, k, cross, v[k]);
+        nextV[k] = predict(v, k, cross, v[k], dt);
       }
     }
+    const wall = this.settings.outlet.wall;
+    const sign = outwardSign(wall);
+    const outletVelocity = vertical(wall) ? nextU : nextV;
+    const inwardOffset = -sign * (vertical(wall) ? 1 : stride);
+    for (const { face } of this.outletBoundary)
+      outletVelocity[face] = outletVelocity[face + inwardOffset];
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < ny; j++) {
         const k = (j + 1) * stride + i + 1;
@@ -263,14 +318,14 @@ export class Cavity {
         );
       }
     }
-    solvePressure(pressure);
+    solvePressure(pressure, this.factor);
+    for (const { face, cell } of this.outletBoundary)
+      outletVelocity[face] += sign * 2 * pressure[cell];
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < ny; j++) {
         const k = (j + 1) * stride + i + 1;
         const row = i * ny + j;
         if (i < nx - 1) nextU[k] += pressure[row] - pressure[row + ny];
-        else if (inOpening(j + 1, scene.outletBottom))
-          nextU[k] += 2 * pressure[row];
         if (j < ny - 1) nextV[k] += pressure[row] - pressure[row + 1];
       }
     }
@@ -279,25 +334,32 @@ export class Cavity {
     this.nextU = u;
     this.nextV = v;
     this.setGhostFaces();
-    this.time += scene.dt;
   }
 
   /** Sample velocity in metres per second, with y increasing from the floor. */
   velocity(x: number, y: number): [number, number] {
-    if (y <= 0 || y >= scene.height) {
-      if (x <= 0 || x >= scene.width) return [0, 0];
-      const face = boundaryFace(y <= 0 ? "bottom" : "top", Math.floor(x / h));
-      return [0, this.v[face]];
-    }
-    if (x <= 0 || x >= scene.width) {
-      const right = x >= scene.width;
-      const row = 1 + Math.floor(y / h);
-      const k = row * stride + (right ? nx : 0);
-      const tangential =
-        right && inOpening(row, scene.outletBottom)
-          ? interpolate(this.v, nx + 0.5, y / h)
-          : 0;
-      return [this.u[k], tangential];
+    if (x <= 0 || x >= scene.width || y <= 0 || y >= scene.height) {
+      const side =
+        x <= 0
+          ? "left"
+          : x >= scene.width
+            ? "right"
+            : y <= 0
+              ? "bottom"
+              : "top";
+      const upright = vertical(side);
+      const position = upright ? y : x;
+      if (position <= 0 || position >= (upright ? scene.height : scene.width))
+        return [0, 0];
+      const face = boundaryFace(side, Math.floor(position / h));
+      const outlet = this.settings.outlet;
+      const free =
+        side === outlet.wall &&
+        position >= outlet.start &&
+        position < outlet.start + outlet.width;
+      return upright
+        ? [this.u[face], free ? interpolate(this.v, x / h + 0.5, y / h) : 0]
+        : [free ? interpolate(this.u, x / h, y / h + 0.5) : 0, this.v[face]];
     }
     return [
       interpolate(this.u, x / h, y / h + 0.5),
