@@ -6,7 +6,7 @@ const files = new Map([
   ["/viewer.js", ["viewer.js", "text/javascript"]],
   ["/style.css", ["style.css", "text/css"]],
 ]);
-const port = Number(process.argv[2] === "--port" ? process.argv[3] : 5173);
+const port = Number(process.argv[2] === "--port" ? process.argv[3] : 41673);
 createServer(async (req, res) => {
   const file = files.get(req.url);
   if (!file) {
