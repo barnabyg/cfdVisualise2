@@ -29,24 +29,23 @@ header {
   line-height: 1;
 }
 main {
-  max-width: 1380px;
-  margin: 40px auto;
-  padding: 0 5vw;
+  margin: 20px auto;
+  padding: 0 clamp(18px, 2vw, 60px);
 }
 h1 {
   font-family: Georgia, serif;
   font-weight: normal;
-  font-size: clamp(40px, 5vw, 68px);
+  font-size: clamp(36px, 3vw, 50px);
   letter-spacing: -0.05em;
   margin: 0;
 }
 .intro {
   color: #516065;
-  margin: 8px 0 28px;
+  margin: 6px 0 18px;
 }
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(230px, 25%);
+  grid-template-columns: minmax(0, 1fr) clamp(270px, 19vw, 390px);
   gap: 24px;
 }
 .plate {
@@ -90,7 +89,8 @@ h2 {
 #field {
   display: block;
   width: 100%;
-  margin: 14px 0 0;
+  max-width: max(800px, calc((100dvh - 300px) * 1.95));
+  margin: 0 auto;
 }
 #axes text {
   font:
@@ -103,7 +103,7 @@ h2 {
   font-size: 12px;
   color: #cbd7d7;
 }
-.legend span:before {
+.legend > span:before {
   display: inline-block;
   content: "";
   width: 17px;
@@ -111,6 +111,25 @@ h2 {
   vertical-align: middle;
   background: #aec1c6;
   margin-right: 7px;
+}
+.legend {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.pressure-key {
+  margin-right: auto;
+}
+#pressure-scale {
+  display: flex;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.pressure-key span {
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+  border-top: 5px solid;
+  padding: 3px 4px 0;
 }
 .legend .in:before {
   background: #67d8b4;

@@ -1,12 +1,13 @@
+import { geometry as renderedGeometry } from "./geometry.ts";
 import { test, expect } from "@playwright/test";
 test("Run develops directional arrows from still fluid", async ({ page }) => {
   await page.goto("/");
   const field = page.getByRole("img", { name: "Cavity velocity field" });
   await expect(field).toBeVisible();
-  const arrows = field.locator("path.velocity");
-  await expect(arrows).toHaveAttribute("d", "");
+  const arrows = field.locator(".velocity");
+  await expect.poll(() => renderedGeometry(arrows)).toBe("");
   await page.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(arrows).toHaveAttribute("d", /L/);
+  await expect.poll(() => renderedGeometry(arrows)).toMatch(/L/);
 });
 
 test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
@@ -20,12 +21,12 @@ test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await expect(page.locator("#outflow")).toHaveText("0.09375");
   await click("Pause");
   const field = page.locator(".velocity");
-  const paused = await field.getAttribute("d");
+  const paused = await renderedGeometry(field);
   for (const unsupported of ["-1", "1e-322", "100"]) {
     await rate.fill(unsupported);
     await click("Apply");
     await expect(page.getByRole("alert")).toContainText("rate");
-    await expect(field).toHaveAttribute("d", paused ?? "");
+    await expect.poll(() => renderedGeometry(field)).toBe(paused ?? "");
   }
   await click("Restart");
   await expect(page.locator("#outflow")).toHaveText("0");
@@ -33,7 +34,7 @@ test("apply, reject, restart and restore an inlet rate", async ({ page }) => {
   await expect(page.locator("#outflow")).toHaveText("0.09375");
   await click("Restore defaults");
   await expect(rate).toHaveValue("0.1875");
-  await expect(field).toHaveAttribute("d", "");
+  await expect.poll(() => renderedGeometry(field)).toBe("");
 });
 
 test("higher flow at fixed width lengthens the inlet arrow on the same scale", async ({
@@ -49,7 +50,7 @@ test("higher flow at fixed width lengthens the inlet arrow on the same scale", a
     await page.clock.runFor(500);
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     const shaft = arrowAt(
-      (await page.locator(".velocity").getAttribute("d")) ?? "",
+      (await renderedGeometry(page.locator(".velocity"))) ?? "",
       12.5,
       337.5,
     );
@@ -79,7 +80,7 @@ test("moving then narrowing the inlet strengthens the rendered downward jet", as
     await page.getByRole("button", { name: "Run", exact: true }).click();
     await page.clock.runFor(350);
     await page.getByRole("button", { name: "Pause", exact: true }).click();
-    const path = await page.locator(".velocity").getAttribute("d");
+    const path = await renderedGeometry(page.locator(".velocity"));
     const shaft = arrowAt(path ?? "", 112.5, 12.5);
     lengths.push(shaft[3] - shaft[1]);
   }
@@ -104,7 +105,7 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
     await page.clock.runFor(1000);
     await click("Pause");
     await expect(page.locator("#outflow")).toHaveText("0.1875");
-    return (await page.locator(".velocity").getAttribute("d")) ?? "";
+    return (await renderedGeometry(page.locator(".velocity"))) ?? "";
   }
   const original = await runField();
   await outlet.getByLabel("Wall").selectOption("top");
@@ -123,7 +124,7 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
   }
   expect(exitSpeeds[0]).toBeGreaterThan(0);
   expect(exitSpeeds[1]).toBeGreaterThan(exitSpeeds[0]);
-  const active = await page.locator(".velocity").getAttribute("d");
+  const active = await renderedGeometry(page.locator(".velocity"));
   for (const [wall, pos, message] of [
     ["top", "1.5", "fit"],
     ["left", "0.125", "overlap"],
@@ -133,7 +134,9 @@ test("moving then narrowing the outlet redirects the field and increases exit sp
     await outlet.getByLabel("Position").fill(pos);
     await click("Apply");
     await expect(page.getByRole("alert")).toContainText(message);
-    await expect(page.locator(".velocity")).toHaveAttribute("d", active ?? "");
+    await expect
+      .poll(() => renderedGeometry(page.locator(".velocity")))
+      .toBe(active ?? "");
   }
   await click("Restart");
   await expect(outletMarker).toHaveAttribute("d", "M200 0 h37.5");
@@ -184,7 +187,7 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
     await w.fill(width);
     await h.fill(height);
     await click("Apply");
-    await expect(field).toHaveAttribute("d", "");
+    await expect.poll(() => renderedGeometry(field)).toBe("");
     await expect(marker).toHaveAttribute("d", exit);
     const box = await walls.boundingBox();
     if (!box) throw Error("Missing resized cavity");
@@ -196,30 +199,30 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
       1,
     );
     await click("Run");
-    await expect(field).toHaveAttribute("d", /L/);
+    await expect.poll(() => renderedGeometry(field)).toMatch(/L/);
     await click("Pause");
-    arrowAt((await field.getAttribute("d")) ?? "", x, y);
+    arrowAt((await renderedGeometry(field)) ?? "", x, y);
   }
   await click("Restore defaults");
   await click("Run");
-  await expect(field).toHaveAttribute("d", /L/);
+  await expect.poll(() => renderedGeometry(field)).toMatch(/L/);
   await click("Pause");
-  const paused = (await field.getAttribute("d")) ?? "";
+  const paused = (await renderedGeometry(field)) ?? "";
   for (const value of ["", "0", "-1", "0.51", "2.03125"]) {
     await w.fill(value);
     await click("Apply");
     await expect(page.getByRole("alert")).toContainText("between 0.5 and 2");
-    await expect(field).toHaveAttribute("d", paused);
+    await expect.poll(() => renderedGeometry(field)).toBe(paused);
   }
   await w.fill("1.5");
   await h.fill("0.875");
   await click("Apply");
   await expect(page.getByRole("alert")).toContainText("Outlet");
-  await expect(field).toHaveAttribute("d", paused);
+  await expect.poll(() => renderedGeometry(field)).toBe(paused);
   await outlet.fill("0.625");
   await click("Apply");
   await expect(page.getByRole("alert")).toBeEmpty();
-  await expect(field).toHaveAttribute("d", "");
+  await expect.poll(() => renderedGeometry(field)).toBe("");
   await expect(walls).toHaveAttribute("height", "350");
   await expect(marker).toHaveAttribute("d", "M600 100 v-75");
   await click("Run");
@@ -227,7 +230,7 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
   await h.fill("2");
   await click("Restart");
   await expect(walls).toHaveAttribute("height", "350");
-  await expect(field).toHaveAttribute("d", "");
+  await expect.poll(() => renderedGeometry(field)).toBe("");
   await expect(marker).toHaveAttribute("d", "M600 100 v-75");
   await click("Restore defaults");
   await expect(w).toHaveValue("1.5");
@@ -258,7 +261,7 @@ test("compare the shallow and tall currents at the same place and time", async (
     await page.clock.runFor(1000);
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     const [x0, y0, x1, y1] = arrowAt(
-      (await page.locator(".velocity").getAttribute("d")) ?? "",
+      (await renderedGeometry(page.locator(".velocity"))) ?? "",
       312.5,
       y,
     );
@@ -267,4 +270,29 @@ test("compare the shallow and tall currents at the same place and time", async (
     expect(slope).toBeGreaterThan(minSlope);
     expect(slope).toBeLessThan(maxSlope);
   }
+});
+
+test("large desktop keeps the enlarged default cavity and pressure key in view", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("/");
+  const walls = await page.locator("#walls").boundingBox();
+  expect(walls?.width).toBeGreaterThan(1200);
+  await expect(page.locator("#pressure-scale")).toBeInViewport({ ratio: 1 });
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect
+    .poll(() =>
+      page
+        .locator(".velocity path")
+        .evaluateAll(
+          (paths) =>
+            new Set(
+              paths
+                .filter((path) => path.getAttribute("d"))
+                .map((path) => path.getAttribute("stroke")),
+            ).size,
+        ),
+    )
+    .toBeGreaterThan(1);
 });

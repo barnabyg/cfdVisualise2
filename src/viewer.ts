@@ -7,7 +7,21 @@ function element<T extends Element>(
   if (!result) throw Error(`Missing ${selector}`);
   return result;
 }
-const field = element<SVGPathElement>(".velocity");
+const field = element<SVGGElement>(".velocity");
+const colours = [
+  "#748fdc",
+  "#86b7ea",
+  "#a6d9e9",
+  "#d7e6db",
+  "#f6ddb0",
+  "#ffbf82",
+  "#fa966d",
+  "#f07569",
+  "#e35960",
+];
+const pressureStops = [0, 0.25, 0.5, 0.65, 0.75, 0.8, 0.85, 0.9, 1];
+const arrows: SVGPathElement[] = [];
+let pressureRange = 1;
 const status = element("#status");
 const time = element("#time");
 const run = element<HTMLButtonElement>("#run");
@@ -33,6 +47,24 @@ function showConditions() {
     "viewBox",
     `${originX} -20 ${plotWidth + leftMargin + rightMargin} ${height + 57}`,
   );
+  arrows.length = 0;
+  field.replaceChildren();
+  for (let y = height - spacing / 2; y > 0; y -= spacing) {
+    for (let x = spacing / 2; x < width; x += spacing) {
+      const arrow = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      field.append(arrow);
+      arrows.push(arrow);
+    }
+  }
+  pressureRange = (model.settings.flux / model.settings.outlet.width) ** 2;
+  element("#pressure-scale").innerHTML = pressureStops
+    .map((stop, index) => {
+      return `<span style="border-color:${colours[index]}">${Number((stop * pressureRange).toPrecision(3))}</span>`;
+    })
+    .join("");
   const axes = element("#axes");
   axes.replaceChildren();
   for (let x = 0; x <= metresWide; x += 0.25) {
@@ -122,12 +154,25 @@ rate.value = String(model.settings.flux);
 function draw() {
   const width = model.settings.width * scale,
     height = model.settings.height * scale;
-  const lines: string[] = [];
+  let index = 0;
   for (let y = height - spacing / 2; y > 0; y -= spacing) {
     for (let x = spacing / 2; x < width; x += spacing) {
       const [u, v] = model.velocity(x / scale, (height - y) / scale);
       const speed = Math.hypot(u, v);
-      if (speed === 0) continue;
+      const arrow = arrows[index++];
+      if (speed === 0) {
+        arrow.setAttribute("d", "");
+        continue;
+      }
+      const p = model.pressureAt(x / scale, (height - y) / scale);
+      const relative = pressureRange ? p / pressureRange : 0;
+      let level = 0;
+      while (
+        level + 1 < pressureStops.length &&
+        relative >= (pressureStops[level] + pressureStops[level + 1]) / 2
+      )
+        level++;
+      arrow.setAttribute("stroke", colours[level]);
       // Compress the speed range so slow return flow has a readable arrowhead.
       const length = (22 * Math.asinh(8 * speed)) / Math.asinh(8);
       const dx = (u / speed) * length,
@@ -136,7 +181,8 @@ function draw() {
         tipY = y + dy / 2;
       const head = Math.min(0.42, 4.8 / length);
       const point = (a: number, b: number) => `${a.toFixed(2)} ${b.toFixed(2)}`;
-      lines.push(
+      arrow.setAttribute(
+        "d",
         "M" +
           point(x - dx / 2, y - dy / 2) +
           "L" +
@@ -150,7 +196,6 @@ function draw() {
       );
     }
   }
-  field.setAttribute("d", lines.join(""));
   element("#outflow").textContent = Number(
     model.outflow.toPrecision(5),
   ).toString();
