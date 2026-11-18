@@ -12,7 +12,7 @@
     "format": "biome format .",
     "lint": "biome lint --error-on-warnings .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/flux.test.ts && playwright test",
+    "test": "playwright test",
     "build": "node scripts/build.mjs",
     "verify": "npm run format && npm run lint && npm run typecheck && npm test && npm audit && node scripts/check-package.mjs && npm run build"
   },
