@@ -4,10 +4,11 @@
     "clientKind": "git",
     "useIgnoreFile": true
   },
+  "html": { "formatter": { "enabled": true } },
   "formatter": {
     "indentStyle": "space"
   },
   "files": {
-    "includes": ["**", "!package-lock.json", "!docs/agents"]
+    "includes": ["**", "!package-lock.json"]
   }
 }

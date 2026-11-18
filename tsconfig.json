@@ -8,7 +8,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["node"],
-    "skipLibCheck": true
+    "skipLibCheck": false
   },
   "include": ["src", "tests", "playwright.config.ts"]
 }
