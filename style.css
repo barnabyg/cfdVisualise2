@@ -137,8 +137,7 @@ h2 {
 .legend .out:before {
   background: #ffb26d;
 }
-aside section,
-aside details {
+aside section {
   border-top: 2px solid #34504e;
   padding: 17px 0 26px;
 }
