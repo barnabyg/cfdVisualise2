@@ -235,3 +235,36 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
   await expect(outlet).toHaveValue("0.75");
   await expect(walls).toHaveAttribute("height", "400");
 });
+
+test("compare the shallow and tall currents at the same place and time", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto("/");
+  const height = page
+    .getByRole("group", { name: "Cavity", exact: true })
+    .getByLabel("Height");
+  await page
+    .getByRole("group", { name: "Outlet", exact: true })
+    .getByLabel("Position")
+    .fill("0.625");
+  for (const [depth, y, minSlope, maxSlope] of [
+    ["0.875", 12.5, 0, 0.15],
+    ["1.25", 162.5, 0.35, 0.7],
+  ] as const) {
+    await height.fill(depth);
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await page.clock.runFor(1000);
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    const [x0, y0, x1, y1] = arrowAt(
+      (await page.locator(".velocity").getAttribute("d")) ?? "",
+      312.5,
+      y,
+    );
+    expect(x1).toBeGreaterThan(x0);
+    const slope = (y0 - y1) / (x1 - x0);
+    expect(slope).toBeGreaterThan(minSlope);
+    expect(slope).toBeLessThan(maxSlope);
+  }
+});
