@@ -178,6 +178,7 @@ test("resize the cavity, correct an opening, restart and restore defaults", asyn
   if (!bounds) throw Error("Missing cavity");
   for (const [width, height, exit, x, y] of [
     ["1.5", "1.25", "M600 200 v-75", 312.5, 12.5],
+    ["1.5", "1.03125", "M600 112.5 v-75", 12.5, 400],
     ["1.75", "1", "M700 100 v-75", 662.5, 112.5],
   ] as const) {
     await w.fill(width);

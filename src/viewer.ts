@@ -24,6 +24,7 @@ function showConditions() {
     height = metresHigh * scale;
   walls.setAttribute("width", String(width));
   walls.setAttribute("height", String(height));
+  pattern.setAttribute("y", String(height % spacing));
   const plotWidth = scene.maxDimension * scale;
   const leftMargin = 52,
     rightMargin = 40;
@@ -122,7 +123,7 @@ function draw() {
   const width = model.settings.width * scale,
     height = model.settings.height * scale;
   const lines: string[] = [];
-  for (let y = spacing / 2; y < height; y += spacing) {
+  for (let y = height - spacing / 2; y > 0; y -= spacing) {
     for (let x = spacing / 2; x < width; x += spacing) {
       const [u, v] = model.velocity(x / scale, (height - y) / scale);
       const speed = Math.hypot(u, v);
