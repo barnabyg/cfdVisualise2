@@ -35,8 +35,22 @@ test("the jet develops a visible return current and settles", async ({
   ).toBeGreaterThan(12);
   await page.clock.runFor(17000);
   const settled = await shafts();
+  expect(
+    parseFloat((await page.locator("#time").textContent()) ?? ""),
+  ).toBeCloseTo(20, 0);
   await page.clock.runFor(4000);
   const later = await shafts();
+  expect(
+    parseFloat((await page.locator("#time").textContent()) ?? ""),
+  ).toBeCloseTo(24, 0);
+  for (const sample of [settled, later]) {
+    expect(
+      sample.some((s) => s.x < 20 && s.y > 300 && s.y < 375 && s.dx > 8),
+    ).toBe(true);
+    expect(
+      sample.some((s) => s.x > 580 && s.y > 25 && s.y < 100 && s.dx > 8),
+    ).toBe(true);
+  }
   expect(later).toHaveLength(settled.length);
   const maxDrift = Math.max(
     ...later.map((s, i) =>
