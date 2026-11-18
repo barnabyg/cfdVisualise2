@@ -44,7 +44,7 @@ With Node.js 24.13 or later, npm and a browser installed, start in the checkout 
 
 Open the printed URL. Restore defaults, then run the empty cavity and pause near **1 s**. Select **Square**, keeping the centre at **(0.5, 0.1875) m** and side length **0.25 m**. Apply, run and pause at the same time. The incoming jet splits around the square and its interior stays clear. Switch only the shape to **Circle**. Its diameter equals the previous side length. Apply, run and pause near **1 s** again. Compare the arrows where the square had upstream corners. The circular wall follows the edges of cells whose centres lie inside the disc. Restart retains the applied obstacle. Select **None**, apply and repeat to see the original jet again.
 
-Coordinates are measured from the lower left. The bounding box must align with grid lines, span at least four cells and leave one fluid cell at each cavity wall. Edit the centre or size together with any cavity changes, then apply to start from rest.
+Choose **Square** or **Circle**, then drag the shape to move it. Drag its right handle sideways to resize it around its centre. The dashed preview shows the mesh cells the obstacle will occupy. Typed coordinates and sizes also snap to the mesh, which can shift the centre by half a cell when the size changes. Coordinates are measured from the lower left. The obstacle spans at least four cells and leaves at least one fluid cell at each cavity wall. Press **Apply** to start from rest with the previewed obstacle.
 
 ## Numerical model
 

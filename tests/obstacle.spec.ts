@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { Cavity, scene } from "../src/solver.ts";
+import { geometry } from "./geometry.ts";
 
 for (const shape of ["square", "circle"] as const)
   test(`${shape} wall stops the jet and preserves cross-section flux`, () => {
@@ -49,6 +50,86 @@ for (const shape of ["square", "circle"] as const)
     }
     expect(cavity.velocity(0.34, 0.27)[1]).toBeGreaterThan(0.05);
     expect(cavity.velocity(0.34, 0.09)[1]).toBeLessThan(-0.05);
+  });
+
+for (const editShape of ["square", "circle"] as const)
+  test(`drag and resize the ${editShape} preview before applying`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await page.goto("/");
+    const action = (name: string) =>
+      page.getByRole("button", { name, exact: true }).click();
+    const time = page.locator("#time");
+    const field = page.locator(".velocity");
+    const applied = page.locator("#obstacle");
+    const preview = page.locator("#obstacle-move");
+    const editor = page.locator("#obstacle-editor");
+
+    await action("Run");
+    await page.clock.runFor(400);
+    await action("Pause");
+    const pausedTime = (await time.textContent()) ?? "";
+    const pausedField = await geometry(field);
+    expect(pausedField).toMatch(/L/);
+    await page.getByLabel("Shape").selectOption(editShape);
+    await expect(editor).toHaveClass(/obstacle-draft/);
+
+    async function drag(selector: string, dx: number, dy: number) {
+      const target = page.locator(selector);
+      await target.scrollIntoViewIfNeeded();
+      const box = await target.boundingBox();
+      if (!box) throw Error("Missing obstacle drag target");
+      const pixelsPerCell = await target.evaluate(
+        (node: SVGGraphicsElement) => {
+          const matrix = node.getScreenCTM();
+          if (!matrix) throw Error("Missing obstacle transform");
+          return Math.hypot(matrix.a, matrix.b) * 12.5;
+        },
+      );
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + dx * pixelsPerCell, y - dy * pixelsPerCell, {
+        steps: 3,
+      });
+      await page.mouse.up();
+    }
+
+    const centreX = page.getByLabel("Centre x");
+    const centreY = page.getByLabel("Centre y");
+    const size = page.getByLabel(
+      editShape === "circle" ? "Diameter" : "Side length",
+    );
+    await drag("#obstacle-move", 2.2, 4);
+    await expect(centreX).toHaveValue("0.5625");
+    await expect(centreY).toHaveValue("0.3125");
+    await expect(size).toHaveValue("0.25");
+    await drag("#obstacle-resize", 1, 0);
+    await expect(size).toHaveValue("0.3125");
+    await expect(centreX).toHaveValue("0.5625");
+    await expect(centreY).toHaveValue("0.3125");
+
+    await size.fill("0.22");
+    await size.press("Tab");
+    await expect(size).toHaveValue("0.21875");
+    await expect(centreX).toHaveValue("0.578125");
+    await expect(centreY).toHaveValue("0.328125");
+    const draft = (await preview.getAttribute("d")) ?? "";
+    expect(draft).toMatch(/^M.*Z$/);
+    await expect(applied).toHaveAttribute("d", "");
+    await expect(time).toHaveText(pausedTime);
+    expect(await geometry(field)).toBe(pausedField);
+
+    await action("Apply");
+    await expect(page.getByRole("alert")).toBeEmpty();
+    await expect(time).toHaveText("0.00 s");
+    await expect(applied).toHaveAttribute("d", draft);
+    await expect(editor).not.toHaveClass(/obstacle-draft/);
+    await action("Restore defaults");
+    await expect(editor).toBeHidden();
+    await expect(applied).toHaveAttribute("d", "");
   });
 
 for (const editShape of ["square", "circle"] as const)

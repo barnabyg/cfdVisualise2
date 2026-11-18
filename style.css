@@ -95,6 +95,36 @@ h2 {
 #ports .port-pending {
   opacity: 0.4;
 }
+#obstacle.obstacle-pending {
+  opacity: 0.6;
+}
+#obstacle-editor {
+  display: none;
+}
+#obstacle-editor.obstacle-editable {
+  display: inline;
+}
+#obstacle-move {
+  fill: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+#obstacle-move:active {
+  cursor: grabbing;
+}
+.obstacle-draft #obstacle-move {
+  fill: #aec1c622;
+  stroke: #dfebe8;
+  stroke-width: 2;
+  stroke-dasharray: 8 3;
+}
+#obstacle-resize {
+  fill: #182e36;
+  stroke: #dfebe8;
+  stroke-width: 2;
+  cursor: ew-resize;
+  touch-action: none;
+}
 .port-preview,
 .port-handle {
   pointer-events: none;

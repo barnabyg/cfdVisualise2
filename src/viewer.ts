@@ -1,4 +1,12 @@
-import { Cavity, type Opening, type Wall, scene, vertical } from "./solver.ts";
+import {
+  Cavity,
+  type Obstacle,
+  type Opening,
+  type Wall,
+  obstacleRows,
+  scene,
+  vertical,
+} from "./solver.ts";
 function element<T extends Element>(
   selector: string,
   root: ParentNode = document,
@@ -41,6 +49,38 @@ const density = element<HTMLSelectElement>("#density");
 const defaultDensity = density.value;
 // Keep metres and arrow lengths on one display scale across comparisons.
 const scale = 400;
+const mesh = scene.gridSpacing;
+const snap = (value: number) => Math.round(value / mesh) * mesh;
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+function normalize(input: HTMLInputElement, value: number) {
+  if (Number.isFinite(value)) input.value = String(value);
+}
+
+function plotPoint(event: PointerEvent) {
+  const matrix = plot.getScreenCTM();
+  return matrix
+    ? new DOMPoint(event.clientX, event.clientY).matrixTransform(
+        matrix.inverse(),
+      )
+    : undefined;
+}
+
+function obstacleOutline(
+  spans: ReturnType<typeof obstacleRows>,
+  height: number,
+) {
+  // Trace the perimeter of the resolved rows, covering arrow tips at the wall.
+  const cell = mesh * scale;
+  const perimeter: string[] = [];
+  for (const { row, start } of spans)
+    perimeter.push(`L${start * cell} ${height - row * cell}v${-cell}`);
+  for (const { row, end } of spans.slice().reverse())
+    perimeter.push(`L${end * cell} ${height - (row + 1) * cell}v${cell}`);
+  return perimeter.length ? `${perimeter.join("").replace(/^L/, "M")}Z` : "";
+}
+
 function openingOrigin(port: Opening, width: number, height: number) {
   const offset = port.start * scale;
   return vertical(port.wall)
@@ -85,17 +125,9 @@ function showConditions() {
     "viewBox",
     `${originX} -20 ${plotWidth + leftMargin + rightMargin} ${height + 57}`,
   );
-  // Trace the perimeter of the resolved rows, covering arrow tips at the wall.
-  const spans = model.obstacleSpans;
-  const cell = scene.gridSpacing * scale;
-  const perimeter: string[] = [];
-  for (const { row, start } of spans)
-    perimeter.push(`L${start * cell} ${height - row * cell}v${-cell}`);
-  for (const { row, end } of spans.slice().reverse())
-    perimeter.push(`L${end * cell} ${height - (row + 1) * cell}v${cell}`);
   element("#obstacle").setAttribute(
     "d",
-    perimeter.length ? `${perimeter.join("").replace(/^L/, "M")}Z` : "",
+    obstacleOutline(model.obstacleSpans, height),
   );
   rebuildGrid();
   const axes = element("#axes");
@@ -164,15 +196,13 @@ function openingEditor(key: keyof typeof portColours, name: string) {
     start.value = String(port.start);
     width.value = String(port.width);
   }
-  const spacing = scene.gridSpacing;
-  const snap = (value: number) => Math.round(value / spacing) * spacing;
   function read(): Opening {
     const position = start.valueAsNumber;
     const size = width.valueAsNumber;
     return {
       wall: select.value as Wall,
       start: position >= 0 ? snap(position) : position,
-      width: size > 0 ? Math.max(spacing, snap(size)) : size,
+      width: size > 0 ? Math.max(mesh, snap(size)) : size,
     };
   }
 
@@ -241,19 +271,13 @@ function openingEditor(key: keyof typeof portColours, name: string) {
     line.setAttribute("x2", String(span));
   }
 
-  function normalize(input: HTMLInputElement, value: number) {
-    if (Number.isFinite(value)) input.value = String(value);
-  }
   group.addEventListener("input", render);
   start.addEventListener("change", () => normalize(start, read().start));
   width.addEventListener("change", () => normalize(width, read().width));
 
   function coordinate(event: PointerEvent, wall: Wall) {
-    const matrix = plot.getScreenCTM();
-    if (!matrix) return NaN;
-    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
-      matrix.inverse(),
-    );
+    const point = plotPoint(event);
+    if (!point) return NaN;
     return (vertical(wall) ? -point.y : point.x) / scale;
   }
 
@@ -275,13 +299,11 @@ function openingEditor(key: keyof typeof portColours, name: string) {
       const delta = snap(coordinate(event, port.wall) - origin);
       const length = wallLength(port.wall);
       const end = port.start + port.width;
-      const clamp = (value: number, min: number, max: number) =>
-        Math.min(max, Math.max(min, value));
       if (grip === startGrip) {
-        const nextStart = clamp(port.start + delta, 0, end - spacing);
+        const nextStart = clamp(port.start + delta, 0, end - mesh);
         set({ ...port, start: nextStart, width: end - nextStart });
       } else if (grip === endGrip) {
-        const nextEnd = clamp(end + delta, port.start + spacing, length);
+        const nextEnd = clamp(end + delta, port.start + mesh, length);
         set({ ...port, width: nextEnd - port.start });
       } else {
         set({
@@ -320,12 +342,139 @@ const shape = element<HTMLSelectElement>("#shape");
 const centreX = element<HTMLInputElement>("#centre-x");
 const centreY = element<HTMLInputElement>("#centre-y");
 const size = element<HTMLInputElement>("#size");
+const obstacleEditor = element<SVGGElement>("#obstacle-editor");
+const obstacleMove = element<SVGPathElement>("#obstacle-move");
+const obstacleHandle = element<SVGCircleElement>("#obstacle-resize");
+const appliedObstacle = element<SVGPathElement>("#obstacle");
+
+function readObstacle(): Obstacle | undefined {
+  if (shape.value === "none") return undefined;
+  const typedSize = size.valueAsNumber;
+  const snappedSize =
+    typedSize > 0
+      ? Math.max(scene.minObstacleSize, snap(typedSize))
+      : typedSize;
+  const radius = snappedSize / 2;
+  // Odd cell counts put the centre halfway between mesh lines.
+  const snapCentre = (value: number) =>
+    Number.isFinite(radius) && radius > 0
+      ? snap(value - radius) + radius
+      : value;
+  return {
+    shape: shape.value === "circle" ? "circle" : "square",
+    x: snapCentre(centreX.valueAsNumber),
+    y: snapCentre(centreY.valueAsNumber),
+    size: snappedSize,
+  };
+}
+
+function setObstacleFields(obstacle: Obstacle) {
+  normalize(centreX, obstacle.x);
+  normalize(centreY, obstacle.y);
+  normalize(size, obstacle.size);
+}
+
+function renderObstacle() {
+  const obstacle = readObstacle();
+  const { obstacle: applied, width, height } = model.settings;
+  let outline = "";
+  if (obstacle) {
+    try {
+      outline = obstacleOutline(
+        obstacleRows(obstacle, width, height),
+        height * scale,
+      );
+    } catch {
+      // Incomplete or out-of-bounds edits remain in the form for correction.
+    }
+  }
+  const changed =
+    obstacle?.shape !== applied?.shape ||
+    obstacle?.x !== applied?.x ||
+    obstacle?.y !== applied?.y ||
+    obstacle?.size !== applied?.size;
+  appliedObstacle.classList.toggle(
+    "obstacle-pending",
+    changed && (!obstacle || !!outline),
+  );
+  obstacleEditor.classList.toggle("obstacle-editable", !!outline);
+  obstacleEditor.classList.toggle("obstacle-draft", changed);
+  obstacleMove.setAttribute("d", outline);
+  if (obstacle && outline) {
+    obstacleHandle.setAttribute(
+      "cx",
+      String((obstacle.x + obstacle.size / 2) * scale),
+    );
+    obstacleHandle.setAttribute("cy", String((height - obstacle.y) * scale));
+  }
+}
+
 function showObstacleEditor() {
   element("#size-label").textContent =
     shape.value === "circle" ? "Diameter (m)" : "Side length (m)";
   element<HTMLElement>("#obstacle-settings").hidden = shape.value === "none";
+  renderObstacle();
 }
 shape.addEventListener("change", showObstacleEditor);
+for (const input of [centreX, centreY, size]) {
+  input.addEventListener("input", renderObstacle);
+  input.addEventListener("change", () => {
+    const obstacle = readObstacle();
+    if (obstacle) setObstacleFields(obstacle);
+    renderObstacle();
+  });
+}
+
+let obstacleDrag:
+  | { pointer: number; origin: DOMPoint; obstacle: Obstacle; resize: boolean }
+  | undefined;
+obstacleEditor.addEventListener("pointerdown", (event) => {
+  if (!event.isPrimary || event.button !== 0 || obstacleDrag) return;
+  const obstacle = readObstacle();
+  const origin = plotPoint(event);
+  if (!obstacle || !origin) return;
+  obstacleDrag = {
+    pointer: event.pointerId,
+    origin,
+    obstacle,
+    resize: event.target === obstacleHandle,
+  };
+  obstacleEditor.setPointerCapture(event.pointerId);
+});
+obstacleEditor.addEventListener("pointermove", (event) => {
+  if (obstacleDrag?.pointer !== event.pointerId) return;
+  const point = plotPoint(event);
+  if (!point) return;
+  const { obstacle, origin, resize } = obstacleDrag;
+  const { width, height } = model.settings;
+  const { x, y, size } = obstacle;
+  const radius = size / 2;
+  const dx = snap((point.x - origin.x) / scale);
+  if (resize) {
+    // A fixed centre keeps the parity of the obstacle's cell count.
+    const minRadius = scene.minObstacleSize / 2;
+    const maxRadius = Math.min(x, width - x, y, height - y) - mesh;
+    const minDelta = Math.ceil((minRadius - radius) / mesh) * mesh;
+    const maxDelta = Math.floor((maxRadius - radius) / mesh) * mesh;
+    setObstacleFields({
+      ...obstacle,
+      size: size + 2 * clamp(dx, minDelta, maxDelta),
+    });
+  } else {
+    const margin = radius + mesh;
+    const dy = snap((origin.y - point.y) / scale);
+    setObstacleFields({
+      ...obstacle,
+      x: clamp(x + dx, margin, width - margin),
+      y: clamp(y + dy, margin, height - margin),
+    });
+  }
+  renderObstacle();
+});
+obstacleEditor.addEventListener("lostpointercapture", () => {
+  obstacleDrag = undefined;
+});
+
 function showPressureScale() {
   // Use the solver mesh so changing the display density keeps the same key.
   const samples = model.fluidPressures().sort((a, b) => a - b);
@@ -443,6 +592,7 @@ function reset(next: Cavity) {
   model = next;
   showConditions();
   renderOpeningEditors();
+  renderObstacle();
   run.textContent = "Run";
   run.disabled = false;
   restart.disabled = true;
@@ -454,20 +604,14 @@ restart.addEventListener("click", () => reset(new Cavity(model.settings)));
 element("#settings").addEventListener("submit", (event) => {
   event.preventDefault();
   try {
+    const obstacle = readObstacle();
+    if (obstacle) setObstacleFields(obstacle);
     reset(
       new Cavity({
         width: widthInput.valueAsNumber,
         height: heightInput.valueAsNumber,
         flux: rate.valueAsNumber,
-        obstacle:
-          shape.value === "none"
-            ? undefined
-            : {
-                shape: shape.value === "circle" ? "circle" : "square",
-                x: centreX.valueAsNumber,
-                y: centreY.valueAsNumber,
-                size: size.valueAsNumber,
-              },
+        obstacle,
         inlet: inletEditor.commit(),
         outlet: outletEditor.commit(),
       }),
@@ -484,11 +628,11 @@ element("#defaults").addEventListener("click", () => {
   const defaults = new Cavity();
   outletEditor.set(defaults.settings.outlet);
   inletEditor.set(defaults.settings.inlet);
-  reset(defaults);
   shape.value = "none";
   for (const input of [centreX, centreY, size])
     input.value = input.defaultValue;
   showObstacleEditor();
+  reset(defaults);
   setDimensions();
   rate.value = String(model.settings.flux);
   element("#feedback").textContent = "";

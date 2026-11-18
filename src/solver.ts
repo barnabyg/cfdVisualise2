@@ -2,6 +2,7 @@ const h = 1 / 32;
 
 export const scene = Object.freeze({
   gridSpacing: h,
+  minObstacleSize: 4 * h,
   minDimension: 0.5,
   maxDimension: 2,
   width: 1.5,
@@ -63,18 +64,18 @@ interface Grid {
 }
 
 // Row spans describe the same solid cells in the solver and the plot.
-function resolveObstacle(
+export function obstacleRows(
   obstacle: Obstacle | undefined,
-  { nx, ny, stride }: Grid,
+  width: number,
+  height: number,
 ) {
-  const solid = new Uint8Array(stride * (ny + 2));
   const spans: { row: number; start: number; end: number }[] = [];
   if (obstacle) {
     const { x, y, size } = obstacle;
     const left = (x - size / 2) / h,
       bottom = (y - size / 2) / h,
       cells = size / h;
-    if (!(Number.isInteger(cells) && cells >= 4))
+    if (!(Number.isInteger(cells) && size >= scene.minObstacleSize))
       throw Error(
         `Obstacle size must span at least four cells and be a multiple of ${h} m.`,
       );
@@ -82,7 +83,12 @@ function resolveObstacle(
       throw Error(
         "Place the obstacle so its bounding box edges align with grid lines.",
       );
-    if (left < 1 || bottom < 1 || left + cells >= nx || bottom + cells >= ny)
+    if (
+      left < 1 ||
+      bottom < 1 ||
+      left + cells >= width / h ||
+      bottom + cells >= height / h
+    )
       throw Error(
         "Leave at least one fluid cell between the obstacle and every cavity wall.",
       );
@@ -96,12 +102,20 @@ function resolveObstacle(
       }
       const end = left + cells - (start - left);
       spans.push({ row, start, end });
-      solid.fill(
-        1,
-        (row + 1) * stride + start + 1,
-        (row + 1) * stride + end + 1,
-      );
     }
+  }
+  return spans;
+}
+
+function resolveObstacle(
+  obstacle: Obstacle | undefined,
+  { nx, ny, stride }: Grid,
+) {
+  const spans = obstacleRows(obstacle, nx * h, ny * h);
+  const solid = new Uint8Array(stride * (ny + 2));
+  for (const { row, start, end } of spans) {
+    const offset = (row + 1) * stride + 1;
+    solid.fill(1, offset + start, offset + end);
   }
   return { solid, spans };
 }
