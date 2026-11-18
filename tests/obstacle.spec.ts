@@ -97,13 +97,20 @@ for (const editShape of ["square", "circle"] as const)
     expect(await field()).toBe(active);
     await action("Restart");
     await expect(outline).toHaveAttribute("d", activeOutline ?? "");
+    const bounds = () =>
+      outline.evaluate((node) => {
+        const { x, y, width, height } = (node as SVGGraphicsElement).getBBox();
+        return [x, y, width, height];
+      });
     await page.getByLabel("Centre x").fill("0.625");
+    await action("Apply");
+    expect(await bounds()).toEqual([200, 275, 100, 100]);
     await page
       .getByLabel(editShape === "circle" ? "Diameter" : "Side length")
       .fill("0.1875");
     await action("Apply");
     await expect(page.getByRole("alert")).toBeEmpty();
-    expect(await outline.getAttribute("d")).not.toBe(activeOutline);
+    expect(await bounds()).toEqual([212.5, 287.5, 75, 75]);
     await page.locator("#cavity-width").fill("1.5");
     await page.getByLabel("Shape").selectOption("none");
     await action("Apply");
