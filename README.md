@@ -6,7 +6,7 @@ With Node.js 24.13 or later, npm and a browser installed, double-click `run.bat`
 .\run.bat
 ```
 
-Open the URL printed in the terminal and press **Run**. Each launch runs its own server in the foreground. If port 41673 is busy, the launcher prints a URL with an available port. The cavity starts with still fluid. The green opening low on the left admits the jet. The orange opening high on the right discharges it. The grid shows fixed sample locations. Arrowheads show velocity direction, and arrow length increases with speed on a fixed scale. Stop the local server with Ctrl+C.
+Open the URL printed in the terminal and press **Run**. Each launch runs its own server in the foreground. If port 41751 is busy, the launcher prints a URL with an available port. The cavity starts with still fluid. The green opening low on the left admits the jet. The orange opening high on the right discharges it. The grid shows fixed sample locations. Arrowheads show velocity direction, and arrow length increases with speed on a fixed scale. Stop the local server with Ctrl+C.
 
 Arrow colour shows kinematic pressure relative to the outlet. Blue marks lower pressure and coral marks higher pressure. The colour scale expands the middle 90% of the fluid-cell pressures and clips the tails to the end colours. The swatches update in m²/s² during playback, so use their values when comparing frames. Run the default scene and pause near **1 s** to see a spread of arrow colours. The pressure key holds while paused, even if you change the grid density.
 
