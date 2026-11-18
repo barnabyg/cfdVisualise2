@@ -1,5 +1,5 @@
 import { copyFile, mkdir } from "node:fs/promises";
-import { build } from "esbuild";
+import { build, stop } from "esbuild";
 await mkdir("dist", { recursive: true });
 await Promise.all([
   build({
@@ -11,3 +11,4 @@ await Promise.all([
   copyFile("index.html", "dist/index.html"),
   copyFile("style.css", "dist/style.css"),
 ]);
+await stop();
