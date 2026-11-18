@@ -68,8 +68,8 @@ function openingEditor(name: string, initial: Opening) {
   const group = document.createElement("fieldset");
   group.innerHTML = `<legend>${name}</legend>
     <label>Wall <select><option value="left">Left</option><option value="right">Right</option><option value="bottom">Bottom</option><option value="top">Top</option></select></label>
-    <label>Position (m) <input type="number" step="0.03125"></label>
-    <label>Width (m) <input type="number" step="0.03125"></label>`;
+    <label>Position (m) <input type="number" step="${scene.gridSpacing}"></label>
+    <label>Width (m) <input type="number" step="${scene.gridSpacing}"></label>`;
   element("#geometry").append(group);
   const select = element<HTMLSelectElement>("select", group);
   const [start, width] = group.querySelectorAll("input");
@@ -88,6 +88,7 @@ function openingEditor(name: string, initial: Opening) {
     }),
   };
 }
+element("#grid-spacing").textContent = String(scene.gridSpacing);
 const inletEditor = openingEditor("Inlet", model.settings.inlet);
 const outletEditor = openingEditor("Outlet", model.settings.outlet);
 rate.value = String(model.settings.flux);

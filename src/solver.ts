@@ -6,6 +6,7 @@ const cells = nx * ny;
 const padded = stride * (ny + 2);
 
 export const scene = Object.freeze({
+  gridSpacing: h,
   width: nx * h,
   height: ny * h,
   inletBottom: 2 * h,
