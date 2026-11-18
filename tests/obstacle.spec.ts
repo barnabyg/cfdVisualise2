@@ -29,12 +29,12 @@ for (const shape of ["square", "circle"] as const)
           expect(cavity.velocity(x + (dx * h) / 2, y + (dy * h) / 2)).toEqual([
             0, 0,
           ]);
-          // Approach the face from fluid to check the actual projected normal velocity.
+          // Approach the face from fluid to check the normal and tangential velocity limits.
           const near = cavity.velocity(
             x + dx * (h / 2 + 1e-9),
             y + dy * (h / 2 + 1e-9),
           );
-          expect(Math.abs(near[dx === 0 ? 1 : 0])).toBeLessThan(1e-6);
+          expect(Math.hypot(...near)).toBeLessThan(1e-6);
         }
       }
     if (shape === "circle")

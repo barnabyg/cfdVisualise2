@@ -526,6 +526,25 @@ export class Cavity {
       for (let j = Math.ceil(y / h); j <= Math.floor(y / h) + 1; j++)
         for (let i = Math.ceil(x / h); i <= Math.floor(x / h) + 1; i++)
           if (this.solid[j * stride + i]) return [0, 0];
+      // For tangential samples in the half cell next to a wall, interpolate
+      // from zero at the wall to the MAC component on the fluid cell midline.
+      const gx = x / h,
+        gy = y / h;
+      const col = Math.floor(gx),
+        row = Math.floor(gy);
+      const k = (row + 1) * stride + col + 1;
+      const fx = gx - col,
+        fy = gy - row;
+      const wallX = this.solid[k + (fx < 0.5 ? -1 : 1)];
+      const wallY = this.solid[k + (fy < 0.5 ? -stride : stride)];
+      return [
+        wallY
+          ? 2 * Math.min(fy, 1 - fy) * interpolate(stride, this.u, gx, row + 1)
+          : interpolate(stride, this.u, gx, gy + 0.5),
+        wallX
+          ? 2 * Math.min(fx, 1 - fx) * interpolate(stride, this.v, col + 1, gy)
+          : interpolate(stride, this.v, gx + 0.5, gy),
+      ];
     }
     return [
       interpolate(stride, this.u, x / h, y / h + 0.5),
