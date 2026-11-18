@@ -1,12 +1,12 @@
 # Cavity flow
 
-From the repository root in PowerShell 7, with Node.js 24.13 or later, npm and a browser installed, run:
+With Node.js 24.13 or later, npm and a browser installed, double-click `run.bat` on Windows. You can also start it from the repository root in PowerShell 7:
 
 ```powershell
-npm.cmd run launch
+.\run.bat
 ```
 
-Open http://127.0.0.1:41673/ and press **Run**. The cavity starts with still fluid. The green opening low on the left admits the jet. The orange opening high on the right discharges it. The grid shows fixed sample locations. Arrowheads show velocity direction, and arrow length increases with speed on a fixed scale. Stop the local server with Ctrl+C.
+Open http://127.0.0.1:41673/ and press **Run**. If Cavity flow is already running, double-clicking `run.bat` opens it in your browser. The cavity starts with still fluid. The green opening low on the left admits the jet. The orange opening high on the right discharges it. The grid shows fixed sample locations. Arrowheads show velocity direction, and arrow length increases with speed on a fixed scale. Stop the local server with Ctrl+C.
 
 Enter **0.09375** for Inlet rate and press **Apply**, then **Run**. The jet enters at half the default speed and calculated outflow rises from zero to 0.09375 m²/s. Restart replays the applied rate. Restore defaults returns to the original scene.
 

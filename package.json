@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/serve.mjs",
-    "launch": "npm ci && npm run dev",
+    "launch": "npm install --no-audit --no-fund && npm run dev",
     "format": "biome format .",
     "lint": "biome lint --error-on-warnings .",
     "typecheck": "tsc --noEmit",
