@@ -9,7 +9,7 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
       return { outward: -u, tangent: v };
     }
     case "right": {
-      const [u, v] = cavity.velocity(scene.width, position);
+      const [u, v] = cavity.velocity(cavity.settings.width, position);
       return { outward: u, tangent: v };
     }
     case "bottom": {
@@ -17,7 +17,7 @@ function sampleWall(cavity: Cavity, wall: Wall, position: number) {
       return { outward: -v, tangent: u };
     }
     case "top": {
-      const [u, v] = cavity.velocity(position, scene.height);
+      const [u, v] = cavity.velocity(position, cavity.settings.height);
       return { outward: v, tangent: u };
     }
   }
@@ -86,19 +86,30 @@ for (const wall of ["left", "right", "bottom", "top"] as const) {
   });
 }
 
-for (const wall of ["top", "bottom", "left", "right"] as const) {
-  test(`relocated ${wall} outlet discharges across its active faces only`, () => {
+for (const [wall, cavityWidth, height] of [
+  ["top", 1.5, 1],
+  ["bottom", 1.5, 1],
+  ["left", 1.5, 1],
+  ["right", 1.5, 1],
+  ["top", 1.75, 1.25],
+] as const) {
+  test(`relocated ${wall} outlet in ${cavityWidth} x ${height} m discharges across its active faces only`, () => {
     for (const width of [0.1875, 0.09375]) {
       const start = 0.5;
-      const cavity = new Cavity({ outlet: { wall, start, width } });
+      const cavity = new Cavity({
+        width: cavityWidth,
+        height,
+        outlet: { wall, start, width },
+      });
       for (const instant of [0.1, 1, 6]) {
         while (cavity.time < instant) cavity.step();
         let inflow = 0,
           outflow = 0;
         for (const side of ["left", "right", "bottom", "top"] as const) {
           const upright = side === "left" || side === "right";
-          const ds = (upright ? scene.height : scene.width) / 960;
-          for (let i = 0; i < 960; i++) {
+          const ds = 1 / 960;
+          const length = upright ? height : cavityWidth;
+          for (let i = 0; i < length / ds; i++) {
             const pos = (i + 0.5) * ds;
             const { outward } = sampleWall(cavity, side, pos);
             if (side === wall && pos >= start && pos < start + width)
