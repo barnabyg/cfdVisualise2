@@ -66,6 +66,10 @@
               stroke="#aec1c6"
               stroke-width="1.5"
             />
+            <g id="obstacle-editor" aria-hidden="true">
+              <path id="obstacle-move" />
+              <circle id="obstacle-resize" r="8" />
+            </g>
             <g id="ports"></g>
             <g id="port-editors" aria-hidden="true"></g>
           </svg>
@@ -138,6 +142,9 @@
                   </select></label
                 >
                 <div id="obstacle-settings" hidden>
+                  <p>
+                    Drag the shape to move it or its right handle to resize it.
+                  </p>
                   <label
                     >Centre x (m)
                     <input
